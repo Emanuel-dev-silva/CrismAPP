@@ -161,23 +161,17 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                 ) {
                     Surface(
                         onClick = { if (context is Activity) context.finish() },
-                        modifier = Modifier.padding(bottom = 110.dp).height(48.dp).fillMaxWidth(0.65f),
+                        modifier = Modifier.padding(bottom = 110.dp).height(48.dp).fillMaxWidth(0.45f),
                         shape = RoundedCornerShape(12.dp),
                         color = Light_Gray_Darker,
                         shadowElevation = 2.dp
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier.fillMaxHeight().width(40.dp).background(Crisma_Gold),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                // Ícone atualizado para evitar avisos de espelhamento
-                                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null, tint = Crisma_Primary, modifier = Modifier.size(20.dp))
-                            }
+
                             Text(
-                                text = "Sair do APP",
+                                text = "Sair ",
                                 color = Crisma_Primary,
-                                fontSize = 14.sp,
+                                fontSize = 18.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.fillMaxWidth(),
                                 textAlign = TextAlign.Center
@@ -235,7 +229,12 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
             onDismissRequest = { showSobreNosDialog = false },
             confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido") } },
             title = { Text("Sobre o CrismAPP") },
-            text = { Text("Desenvolvido para auxiliar a caminhada cristã na Paróquia.\n\nDesenvolvedor:\nEmanuel Barbosa (UFRPE)") }
+            text = { Text(
+                "O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n" +
+                        ". Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n" +
+                        ". Gestão de Requisitos:\nVictor Lima\n\n"
+
+            ) }
         )
     }
     if (showContatosDialog) {
@@ -243,7 +242,14 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
             onDismissRequest = { showContatosDialog = false },
             confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar") } },
             title = { Text("Contatos da Paróquia") },
-            text = { Text("📍 Secretaria Paroquial\n📞 (81) 9XXXX-XXXX\n📧 contato@paroquia.com") }
+            text = { Text(
+                ". Paróquia Santo Antônio\n" +
+                        "Tiúma, São Lourenço da Mata - PE\n\n" +
+                        ". Secretaria e WhatsApp:\n" +
+                        "(81) 9 8593-9076\n\n" +
+                        ". Horário de Atendimento:\n" +
+                        "Terça a Sábado: 08h às 12h"
+            ) }
         )
     }
 }
