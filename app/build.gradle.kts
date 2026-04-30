@@ -11,7 +11,7 @@ android {
     defaultConfig {
         applicationId = "com.example.crismapp"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 34
         versionCode = 1
         versionName = "1.0"
 
@@ -27,6 +27,15 @@ android {
             )
         }
     }
+
+    // RESOLVE O ERRO DE ARQUIVOS DUPLICADOS NO META-INF
+    packaging {
+        resources {
+            excludes += "META-INF/androidx/navigation/navigation-runtime/LICENSE.txt"
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
@@ -49,9 +58,12 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    // Adicionei estas duas para garantir que os ícones e animações que usamos funcionem
+    // Ícones estendidos para o visual do CrismAPP
     implementation("androidx.compose.material:material-icons-extended")
-    implementation("androidx.navigation:navigation-compose:2.8.0")
+
+    // NAVEGAÇÃO: Use apenas esta linha.
+    // Removidas as de runtime, jvmstubs e desktop que causavam o erro.
+    implementation("androidx.navigation:navigation-compose:2.8.5")
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
