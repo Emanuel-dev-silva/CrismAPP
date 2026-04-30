@@ -62,11 +62,11 @@ fun CatequistaLoginScreen(navController: NavController) {
 
         delay(100)
         animarImagem = true
-        delay(400)
+        delay(200)
         animarTextos = true
-        delay(300)
+        delay(400)
         animarIconesTopo = true
-        delay(600)
+        delay(200)
         animarCampos = true
     }
 
@@ -84,7 +84,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarIconesTopo,
                     enter = fadeIn(tween(1200)),
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -112,7 +112,7 @@ fun CatequistaLoginScreen(navController: NavController) {
 
                     androidx.compose.animation.AnimatedVisibility(
                         visible = animarTextos,
-                        enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
+                        enter = fadeIn(tween(200)) + slideInVertically { it / 3 }
                     ) {
                         Column {
                             Text("\nLogin do Catequista", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold, fontFamily = customFont)
@@ -172,7 +172,7 @@ fun CatequistaLoginScreen(navController: NavController) {
             ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarCampos,
-                    enter = fadeIn(tween(1200)) + slideInVertically { 20 },
+                    enter = fadeIn(tween(200)) + slideInVertically { 20 },
                     modifier = Modifier.padding(top = 0.dp) // Padding para não colar na barra central
                 ) {
                     Column(

@@ -84,7 +84,7 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                     modifier = Modifier
                         .fillMaxWidth()
                         .align(Alignment.TopCenter)
-                        .padding(top = 12.dp),
+                        .padding(top = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
@@ -165,22 +165,32 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
             }
 
             // ÁREA INFERIOR (35%)
+            // ÁREA INFERIOR (35%)
             Box(
-                modifier = Modifier.fillMaxWidth().weight(0.35f).background(Color.White),
-                contentAlignment = Alignment.BottomCenter
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.35f) // 35% da tela total
+                    .background(Color.White),
+                contentAlignment = Alignment.Center // Centraliza o botão no meio desses 35%
             ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarBotaoSair,
-                    enter = fadeIn(tween(1000)) + slideInVertically { 40 },
-                    modifier = Modifier.padding(bottom = 25.dp)
+                    enter = fadeIn(tween(1000)) + slideInVertically { 40 }
                 ) {
                     Button(
                         onClick = { if (context is Activity) context.finish() },
-                        modifier = Modifier.width(160.dp).height(48.dp),
+                        modifier = Modifier
+                            .width(160.dp)
+                            .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker)
                     ) {
-                        Text("Sair", color = Crisma_Primary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        Text(
+                            "Sair",
+                            color = Crisma_Primary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
                     }
                 }
             }

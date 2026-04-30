@@ -58,9 +58,9 @@ fun CrismandoScreen(navController: NavController) {
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
 
         delay(100); animarImagem = true
-        delay(400); animarTextos = true
-        delay(300); animarIconesTopo = true
-        delay(400); animarBotoesAcao = true
+        delay(200); animarTextos = true
+        delay(200); animarIconesTopo = true
+        delay(200); animarBotoesAcao = true
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -77,7 +77,7 @@ fun CrismandoScreen(navController: NavController) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarIconesTopo,
                     enter = fadeIn(tween(1200)),
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 12.dp)
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
