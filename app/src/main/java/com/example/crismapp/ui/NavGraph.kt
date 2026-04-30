@@ -7,6 +7,7 @@ import androidx.navigation.compose.composable
 import com.example.crismapp.ui.UserSelectionScreen
 import com.example.crismapp.ui.CatequistaLoginScreen
 import com.example.crismapp.ui.CrismandoScreen
+import com.example.crismapp.ui.CatequistaOptionsScreen
 
 @Composable
 fun NavGraph(navController: NavHostController, startDestination: String = "userSelection") {
@@ -16,7 +17,6 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
         composable("userSelection") {
             UserSelectionScreen(
                 onCrismandoSelected = {
-                    // Agora navegando para a nova tela de Crismando
                     navController.navigate("crismandoScreen")
                 },
                 onCatequistaSelected = {
@@ -30,9 +30,27 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
             CatequistaLoginScreen(navController = navController)
         }
 
-        // Nova Tela do Crismando (Frequência, Avisos, Voltar)
+        // Tela de Opções do Catequista (Turmas e Sair)
+        composable("catequistaOptions") {
+            CatequistaOptionsScreen(navController = navController)
+        }
+
+        // Tela do Crismando (Frequência, Avisos, Voltar)
         composable("crismandoScreen") {
             CrismandoScreen(navController = navController)
+        }
+
+        // --- NOVAS ROTAS DE GESTÃO DE TURMAS ---
+
+        composable("turmaJovemScreen") {
+            // Quando você criar o arquivo TurmaJovemScreen.kt, ele será chamado aqui
+            // Por enquanto, você pode criar um Composable simples para teste
+            TurmaJovemScreen(navController = navController)
+        }
+
+        composable("turmaAdultaScreen") {
+            // Quando você criar o arquivo TurmaAdultaScreen.kt, ele será chamado aqui
+            TurmaAdultaScreen(navController = navController)
         }
     }
 }

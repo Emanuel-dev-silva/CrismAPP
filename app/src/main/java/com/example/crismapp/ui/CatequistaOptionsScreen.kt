@@ -15,20 +15,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
+import androidx.navigation.NavController
 import com.example.crismapp.R
 import kotlinx.coroutines.delay
 
@@ -38,35 +36,31 @@ private val Light_Gray_Darker = Color(0xFFE0E0E0)
 private val customFont = FontFamily.Default
 
 @Composable
-fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: () -> Unit) {
-    val context = LocalContext.current
+fun CatequistaOptionsScreen(navController: NavController) {
     val view = LocalView.current
+    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
-    SideEffect {
-        val window = (view.context as Activity).window
-        window.statusBarColor = Crisma_Primary.toArgb()
-        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
-    }
-
-    var selectedOption by remember { mutableStateOf("") }
+    // Estados para Diálogos
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
 
+    // Estados de Animação
     var animarImagem by remember { mutableStateOf(false) }
-    var animarTextosSuperior by remember { mutableStateOf(false) }
-    var animarLabelsBotoes by remember { mutableStateOf(false) }
-    var animarBotaoSair by remember { mutableStateOf(true) }
+    var animarTextos by remember { mutableStateOf(false) }
+    var animarBotoes by remember { mutableStateOf(false) }
+    var animarIconesTopo by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        delay(100)
-        animarImagem = true
-        animarBotaoSair = true
-        delay(200)
-        animarTextosSuperior = true
-        delay(200)
-        animarLabelsBotoes = true
+        val window = (view.context as Activity).window
+        window.statusBarColor = Crisma_Primary.toArgb()
+        WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+
+        delay(100); animarImagem = true
+        delay(200); animarIconesTopo = true
+        delay(400); animarTextos = true
+        delay(600); animarBotoes = true
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -78,23 +72,27 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                     .fillMaxWidth()
                     .weight(0.65f)
                     .background(Crisma_Primary)
-                    .padding(horizontal = 16.dp, vertical = 24.dp)
+                    .padding(horizontal = 16.dp, vertical = 24.dp),
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .padding(top = 20.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                // ÍCONES DE TOPO
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = animarIconesTopo,
+                    enter = fadeIn(tween(1200)),
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp)
                 ) {
-                    UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
-                    UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
+                        UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
+                    }
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
                     androidx.compose.animation.AnimatedVisibility(
                         visible = animarImagem,
-                        enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f),
+                        enter = fadeIn(tween(1500)) + scaleIn(initialScale = 0.9f),
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     ) {
                         Image(
@@ -103,25 +101,38 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(180.dp)
-                                .padding(top = 10.dp)
                         )
                     }
 
                     androidx.compose.animation.AnimatedVisibility(
-                        visible = animarTextosSuperior,
-                        enter = fadeIn(tween(1000)) + slideInVertically { it / 4 }
+                        visible = animarTextos,
+                        enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
                     ) {
                         Column {
-                            Text("\nOlá, bem-vindo ao CrismAPP!", fontSize = 22.sp, color = Color.White, fontFamily = customFont, fontWeight = FontWeight.Bold)
-                            HorizontalDivider(color = Crisma_Gold, thickness = 2.dp, modifier = Modifier.fillMaxWidth(0.7f).padding(vertical = 12.dp))
-                            Text("Selecione seu perfil para continuar sua jornada espiritual.", fontSize = 16.sp, color = Color.White, fontFamily = customFont)
+                            Text(
+                                "\nPainel do Catequista",
+                                fontSize = 24.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = customFont
+                            )
+                            HorizontalDivider(
+                                color = Crisma_Gold,
+                                thickness = 2.dp,
+                                modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp)
+                            )
+                            Text(
+                                "Selecione a turma que deseja gerenciar hoje.",
+                                fontSize = 16.sp,
+                                color = Color.White,
+                                fontFamily = customFont
+                            )
                         }
                     }
                 }
             }
 
-            // --- ÂNCORA DA BARRA CENTRAL ---
-            // Este Box serve para fixar a barra exatamente na divisa das cores
+            // --- BARRA CENTRAL (ÂNCORA COM NAVEGAÇÃO) ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -130,74 +141,67 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(screenHeight * 0.08f)
-                        // Desloca metade da altura para cima para centralizar perfeitamente na linha
                         .offset(y = -(screenHeight * 0.04f))
                         .background(Crisma_Primary)
                 ) {
                     Button(
-                        onClick = { selectedOption = "Crismando"; onCrismandoSelected() },
+                        onClick = {
+                            navController.navigate("turmaJovemScreen")
+                        },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (selectedOption == "Crismando") Light_Gray_Darker else Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         shape = RoundedCornerShape(0.dp)
                     ) {
-                        Text(
-                            "Crismando",
-                            color = if (selectedOption == "Crismando") Crisma_Primary else Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f)
-                        )
+                        Text("Turma Jovem", color = Color.White, fontWeight = FontWeight.Bold)
                     }
+
                     Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.3f)))
+
                     Button(
-                        onClick = { selectedOption = "Catequista"; onCatequistaSelected() },
+                        onClick = {
+                            navController.navigate("turmaAdultaScreen")
+                        },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (selectedOption == "Catequista") Light_Gray_Darker else Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
                         shape = RoundedCornerShape(0.dp)
                     ) {
-                        Text(
-                            "Catequista",
-                            color = if (selectedOption == "Catequista") Crisma_Primary else Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f)
-                        )
+                        Text("Turma Adulta", color = Color.White, fontWeight = FontWeight.Bold)
                     }
                 }
             }
 
             // ÁREA INFERIOR (35%)
-            // ÁREA INFERIOR (35%)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.35f) // 35% da tela total
+                    .weight(0.35f)
                     .background(Color.White),
-                contentAlignment = Alignment.Center // Centraliza o botão no meio desses 35%
+                contentAlignment = Alignment.Center
             ) {
                 androidx.compose.animation.AnimatedVisibility(
-                    visible = animarBotaoSair,
-                    enter = fadeIn(tween(1200)) + slideInVertically { 40 }
+                    visible = animarBotoes,
+                    enter = fadeIn(tween(1000)) + slideInVertically { 40 }
                 ) {
                     Button(
-                        onClick = { if (context is Activity) context.finish() },
+                        onClick = {
+                            navController.navigate("loginCatequista") {
+                                popUpTo("catequistaOptions") { inclusive = true }
+                            }
+                        },
                         modifier = Modifier
                             .width(160.dp)
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker)
                     ) {
-                        Text(
-                            "Sair",
-                            color = Crisma_Primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
+                        Text("Sair", color = Crisma_Primary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                     }
                 }
             }
         }
     }
 
-    // Diálogos
+    // DIÁLOGOS
     if (showSobreNosDialog) {
         AlertDialog(
             onDismissRequest = { showSobreNosDialog = false },
@@ -210,10 +214,8 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
         AlertDialog(
             onDismissRequest = { showContatosDialog = false },
             confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar") } },
-            title = { Text("Contatos da Paróquia") },
+            title = { Text("Contatos") },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
         )
     }
 }
-
-
