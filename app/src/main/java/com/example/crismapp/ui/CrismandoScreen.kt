@@ -9,10 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.DateRange
-import androidx.compose.material.icons.outlined.Description
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -50,7 +47,6 @@ fun CrismandoScreen(navController: NavController) {
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
     var animarBotoesAcao by remember { mutableStateOf(false) }
-    var animarIconesTopo by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
         val window = (view.context as Activity).window
@@ -59,8 +55,7 @@ fun CrismandoScreen(navController: NavController) {
 
         delay(100); animarImagem = true
         delay(200); animarTextos = true
-        delay(200); animarIconesTopo = true
-        delay(200); animarBotoesAcao = true
+        delay(300); animarBotoesAcao = true
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -74,30 +69,27 @@ fun CrismandoScreen(navController: NavController) {
                     .background(Crisma_Primary)
                     .padding(horizontal = 16.dp, vertical = 24.dp),
             ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = animarIconesTopo,
-                    enter = fadeIn(tween(1200)),
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
-                        UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
-                    }
+                    UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
+                    UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
-                    Image(
-                        painter = painterResource(id = R.drawable.imagem_crisma),
-                        contentDescription = "Logo CrismAPP",
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                            .padding(top = 10.dp)
-                    )
-                    androidx.compose.animation.AnimatedVisibility(
+                    AnimatedVisibility(
+                        visible = animarImagem,
+                        enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f)
+                    ) {
+                        Image(
+                            painter = painterResource(id = R.drawable.imagem_crisma),
+                            contentDescription = "Logo",
+                            modifier = Modifier.fillMaxWidth().height(180.dp)
+                        )
+                    }
+
+                    AnimatedVisibility(
                         visible = animarTextos,
                         enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
                     ) {
@@ -115,7 +107,7 @@ fun CrismandoScreen(navController: NavController) {
                                 modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp)
                             )
                             Text(
-                                "Acompanhe sua caminhada na fé.",
+                                "Crescendo na fé e no serviço aos irmãos.",
                                 fontSize = 16.sp,
                                 color = Color.White,
                                 fontFamily = customFont
@@ -125,7 +117,7 @@ fun CrismandoScreen(navController: NavController) {
                 }
             }
 
-            // --- ÂNCORA DA BARRA CENTRAL ---
+            // --- BARRA CENTRAL COM FUNDO BRANCO (CAMUFLAGEM) ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -135,7 +127,7 @@ fun CrismandoScreen(navController: NavController) {
                         .fillMaxWidth()
                         .height(screenHeight * 0.08f)
                         .offset(y = -(screenHeight * 0.04f))
-                        .background(Crisma_Primary)
+                        .background(Color.White)
                 ) {
                     Button(
                         onClick = { },
@@ -146,12 +138,12 @@ fun CrismandoScreen(navController: NavController) {
                         Text("Crismando", color = Crisma_Primary, fontWeight = FontWeight.Bold)
                     }
 
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.3f)))
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
 
                     Button(
                         onClick = { navController.navigate("loginCatequista") },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
                     ) {
                         Text("Catequista", color = Color.White, fontWeight = FontWeight.Bold)
@@ -159,83 +151,91 @@ fun CrismandoScreen(navController: NavController) {
                 }
             }
 
-            // ÁREA INFERIOR (35%)
+            // ÁREA INFERIOR (35%) - GRID 2x2
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.35f)
                     .background(Color.White),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.TopCenter
             ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarBotoesAcao,
                     enter = fadeIn(tween(900)) + slideInVertically { 20 }
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 24.dp).padding(top = 0.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // Linha 1
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            SmallMenuCard(
-                                title = "Frequência",
-                                icon = Icons.Outlined.DateRange,
-                                modifier = Modifier.weight(1f)
-                            ) { /* Navegar para Frequência */ }
-
-                            SmallMenuCard(
-                                title = "Informações",
-                                icon = Icons.Outlined.Description,
-                                modifier = Modifier.weight(1f)
-                            ) { /* Navegar para Informações */ }
+                            SmallMenuCard(title = "Frequência", icon = Icons.Outlined.DateRange, modifier = Modifier.weight(1f)) { }
+                            SmallMenuCard(title = "Avisos", icon = Icons.Outlined.Notifications, modifier = Modifier.weight(1f)) { }
                         }
 
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        Button(
-                            onClick = {
+                        // Linha 2
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            SmallMenuCard(title = "Carnê", icon = Icons.Outlined.Payments, modifier = Modifier.weight(1f)) { }
+                            SmallMenuCard(title = "Voltar", icon = Icons.Outlined.ArrowBack, modifier = Modifier.weight(1f)) {
                                 navController.navigate("userSelection") {
                                     popUpTo("crismandoScreen") { inclusive = true }
                                 }
-                            },
-                            modifier = Modifier.width(160.dp).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker)
-                        ) {
-                            Text("Voltar", color = Crisma_Primary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                            }
                         }
+
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
     }
 
-    // Diálogos
+    // --- DIÁLOGOS ---
     if (showSobreNosDialog) {
         AlertDialog(
             onDismissRequest = { showSobreNosDialog = false },
-            confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido") } },
-            title = { Text("Sobre o CrismAPP") },
+            confirmButton = {
+                TextButton(onClick = { showSobreNosDialog = false }) {
+                    Text("Entendido", color = Crisma_Primary)
+                }
+            },
+            title = { Text("Sobre o CrismAPP", fontWeight = FontWeight.Bold) },
             text = { Text("O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima") }
+
         )
     }
+
     if (showContatosDialog) {
         AlertDialog(
             onDismissRequest = { showContatosDialog = false },
-            confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar") } },
-            title = { Text("Contatos") },
+            confirmButton = {
+                TextButton(onClick = { showContatosDialog = false }) {
+                    Text("Fechar", color = Crisma_Primary)
+                }
+            },
+            title = { Text("Contatos", fontWeight = FontWeight.Bold) },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
+
         )
     }
 }
 
+// Componentes auxiliares (mantidos para o funcionamento da tela)
 @Composable
 fun SmallMenuCard(title: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier
-            .height(110.dp)
+            .height(100.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
@@ -246,8 +246,8 @@ fun SmallMenuCard(title: String, icon: ImageVector, modifier: Modifier = Modifie
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary, modifier = Modifier.size(36.dp))
-            Spacer(modifier = Modifier.height(8.dp))
+            Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.height(4.dp))
             Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center)
         }
     }

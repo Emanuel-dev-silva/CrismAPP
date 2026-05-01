@@ -57,14 +57,10 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-
-    // Ícones estendidos para o visual do CrismAPP
+    implementation("androidx.core:core-splashscreen:1.0.1")
     implementation("androidx.compose.material:material-icons-extended")
-
-    // NAVEGAÇÃO: Use apenas esta linha.
-    // Removidas as de runtime, jvmstubs e desktop que causavam o erro.
     implementation("androidx.navigation:navigation-compose:2.8.5")
-
+    implementation("androidx.core:core-splashscreen:1.0.1")
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

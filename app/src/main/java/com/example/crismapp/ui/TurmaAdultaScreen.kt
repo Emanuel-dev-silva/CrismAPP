@@ -8,11 +8,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.CheckCircle
-import androidx.compose.material.icons.outlined.Groups
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.Notifications
-import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -79,7 +75,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
-                    androidx.compose.animation.AnimatedVisibility(
+                    AnimatedVisibility(
                         visible = animarImagem,
                         enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f)
                     ) {
@@ -90,7 +86,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                         )
                     }
 
-                    androidx.compose.animation.AnimatedVisibility(
+                    AnimatedVisibility(
                         visible = animarTextos,
                         enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
                     ) {
@@ -108,7 +104,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp)
                             )
                             Text(
-                                "Controle de presença e avisos da turma.",
+                                "Ide e fazei discípulos em todas as nações.",
                                 fontSize = 16.sp,
                                 color = Color.White,
                                 fontFamily = customFont
@@ -118,7 +114,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                 }
             }
 
-            // --- BARRA CENTRAL (ADULTA SELECIONADA) ---
+            // --- BARRA CENTRAL COM FUNDO BRANCO ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -128,7 +124,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                         .fillMaxWidth()
                         .height(screenHeight * 0.08f)
                         .offset(y = -(screenHeight * 0.04f))
-                        .background(Crisma_Primary)
+                        .background(Color.White)
                 ) {
                     Button(
                         onClick = {
@@ -137,16 +133,16 @@ fun TurmaAdultaScreen(navController: NavController) {
                             }
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
                     ) {
                         Text("Turma Jovem", color = Color.White, fontWeight = FontWeight.Bold)
                     }
 
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.3f)))
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
 
                     Button(
-                        onClick = { /* Já está na tela Adulta */ },
+                        onClick = { /* Já está na Adulta */ },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
                         shape = RoundedCornerShape(0.dp)
@@ -158,17 +154,23 @@ fun TurmaAdultaScreen(navController: NavController) {
 
             // ÁREA INFERIOR (35%)
             Box(
-                modifier = Modifier.fillMaxWidth().weight(0.35f).background(Color.White),
-                contentAlignment = Alignment.Center
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.35f)
+                    .background(Color.White),
+                contentAlignment = Alignment.TopCenter
             ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarBotoesAcao,
                     enter = fadeIn(tween(900)) + slideInVertically { 20 }
                 ) {
                     Column(
-                        modifier = Modifier.padding(horizontal = 16.dp),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        // PRIMEIRA LINHA
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -178,23 +180,31 @@ fun TurmaAdultaScreen(navController: NavController) {
                             SmallMenuCard(title = "Avisos", icon = Icons.Outlined.Notifications, modifier = Modifier.weight(1f)) { }
                         }
 
-                        Spacer(modifier = Modifier.height(20.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
-                        Button(
-                            onClick = { navController.popBackStack() },
-                            modifier = Modifier.width(160.dp).height(48.dp),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker)
+                        // SEGUNDA LINHA
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Voltar", color = Crisma_Primary, fontWeight = FontWeight.Bold)
+                            SmallMenuCard(title = "Financeiro", icon = Icons.Outlined.Payments, modifier = Modifier.weight(1f)) { }
+                            SmallMenuCard(title = "Dados", icon = Icons.Outlined.BarChart, modifier = Modifier.weight(1f)) { }
+                            SmallMenuCard(title = "Voltar", icon = Icons.Outlined.ArrowBack, modifier = Modifier.weight(1f)) {
+                                // Correção: apontando para a rota correta do NavGraph
+                                navController.navigate("catequistaOptions") {
+                                    popUpTo("turmaAdultaScreen") { inclusive = true }
+                                }
+                            }
                         }
+
+                        Spacer(modifier = Modifier.weight(1f))
                     }
                 }
             }
         }
     }
 
-    // --- DIÁLOGOS DE INFORMAÇÃO ---
+    // --- DIÁLOGOS ---
     if (showSobreNosDialog) {
         AlertDialog(
             onDismissRequest = { showSobreNosDialog = false },
@@ -204,13 +214,8 @@ fun TurmaAdultaScreen(navController: NavController) {
                 }
             },
             title = { Text("Sobre o CrismAPP", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n" +
-                            "Desenvolvimento: Emanuel Barbosa\n" +
-                            "Gestão de Requisitos: Victor Lima"
-                )
-            }
+            text = { Text("O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima") }
+
         )
     }
 
@@ -223,13 +228,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                 }
             },
             title = { Text("Contatos", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    ". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n" +
-                            ". Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n" +
-                            ". Horário de Atendimento:\nTerça a Sábado: 08h às 12h"
-                )
-            }
+            text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
         )
     }
 }

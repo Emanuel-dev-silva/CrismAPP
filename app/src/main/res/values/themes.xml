@@ -1,5 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
+    <!-- Tema principal do App -->
     <style name="Theme.CrismAPP" parent="android:Theme.Material.Light.NoActionBar" />
+
+    <!-- NOVO: Estilo da Splash Screen (O que resolve o erro do Manifest) -->
+    <style name="Theme.App.Starting" parent="Theme.SplashScreen">
+        <!-- Cor de fundo: Vermelho -->
+        <item name="windowSplashScreenBackground">#FFFF0000</item>
+
+        <!-- O ícone/logo central -->
+        <item name="windowSplashScreenAnimatedIcon">@drawable/imagem_entrada</item>
+
+        <!-- Tema para o qual o app muda após os 2 segundos -->
+        <item name="postSplashScreenTheme">@style/Theme.CrismAPP</item>
+    </style>
+
 </resources>

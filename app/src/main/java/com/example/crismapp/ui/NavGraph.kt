@@ -8,6 +8,7 @@ import com.example.crismapp.ui.UserSelectionScreen
 import com.example.crismapp.ui.CatequistaLoginScreen
 import com.example.crismapp.ui.CrismandoScreen
 import com.example.crismapp.ui.CatequistaOptionsScreen
+import com.example.crismapp.ui.CrismandoLoginScreen
 
 @Composable
 fun NavGraph(navController: NavHostController, startDestination: String = "userSelection") {
@@ -17,12 +18,18 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
         composable("userSelection") {
             UserSelectionScreen(
                 onCrismandoSelected = {
-                    navController.navigate("crismandoScreen")
+                    // Agora navega para a tela de login do crismando primeiro
+                    navController.navigate("crismandoLoginScreen")
                 },
                 onCatequistaSelected = {
                     navController.navigate("LoginCatequista")
                 }
             )
+        }
+
+        // --- NOVA ROTA DE LOGIN DO CRISMANDO ---
+        composable("crismandoLoginScreen") {
+            CrismandoLoginScreen(navController = navController)
         }
 
         // Tela de Login do Catequista
@@ -35,21 +42,18 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
             CatequistaOptionsScreen(navController = navController)
         }
 
-        // Tela do Crismando (Frequência, Avisos, Voltar)
+        // Tela do Crismando (Frequência, Avisos, Voltar) - Acessada após login
         composable("crismandoScreen") {
             CrismandoScreen(navController = navController)
         }
 
-        // --- NOVAS ROTAS DE GESTÃO DE TURMAS ---
+        // --- ROTAS DE GESTÃO DE TURMAS ---
 
         composable("turmaJovemScreen") {
-            // Quando você criar o arquivo TurmaJovemScreen.kt, ele será chamado aqui
-            // Por enquanto, você pode criar um Composable simples para teste
             TurmaJovemScreen(navController = navController)
         }
 
         composable("turmaAdultaScreen") {
-            // Quando você criar o arquivo TurmaAdultaScreen.kt, ele será chamado aqui
             TurmaAdultaScreen(navController = navController)
         }
     }
