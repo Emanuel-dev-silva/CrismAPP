@@ -104,7 +104,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                 modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp)
                             )
                             Text(
-                                "Ensina o jovem no caminho em que deve andar.",
+                                "\"Ensina o jovem no caminho em que deve andar.\" \n(Pr 22,6)",
                                 fontSize = 16.sp,
                                 color = Color.White,
                                 fontFamily = customFont

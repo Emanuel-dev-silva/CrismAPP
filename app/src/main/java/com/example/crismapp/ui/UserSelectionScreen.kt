@@ -9,6 +9,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.*
@@ -16,16 +17,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -112,7 +112,7 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                         enter = fadeIn(tween(1000)) + slideInVertically { it / 4 }
                     ) {
                         Column {
-                            Text("\nOlá, bem-vindo ao CrismAPP!", fontSize = 22.sp, color = Color.White, fontFamily = customFont, fontWeight = FontWeight.Bold)
+                            Text("\nOlá, bem-vindo ao CrismAPP", fontSize = 22.sp, color = Color.White, fontFamily = customFont, fontWeight = FontWeight.Bold)
                             HorizontalDivider(color = Crisma_Gold, thickness = 2.dp, modifier = Modifier.fillMaxWidth(0.7f).padding(vertical = 12.dp))
                             Text("Selecione seu perfil para continuar sua jornada espiritual.", fontSize = 16.sp, color = Color.White, fontFamily = customFont)
                         }
@@ -120,8 +120,7 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                 }
             }
 
-            // --- ÂNCORA DA BARRA CENTRAL ---
-            // Este Box serve para fixar a barra exatamente na divisa das cores
+            // --- BARRA CENTRAL COM FUNDO BRANCO ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -130,14 +129,15 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(screenHeight * 0.08f)
-                        // Desloca metade da altura para cima para centralizar perfeitamente na linha
                         .offset(y = -(screenHeight * 0.04f))
-                        .background(Crisma_Primary)
+                        .background(Color.White)
                 ) {
                     Button(
                         onClick = { selectedOption = "Crismando"; onCrismandoSelected() },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (selectedOption == "Crismando") Light_Gray_Darker else Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedOption == "Crismando") Light_Gray_Darker else Crisma_Primary
+                        ),
                         shape = RoundedCornerShape(0.dp)
                     ) {
                         Text(
@@ -147,11 +147,15 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                             modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f)
                         )
                     }
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.3f)))
+
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
+
                     Button(
                         onClick = { selectedOption = "Catequista"; onCatequistaSelected() },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = if (selectedOption == "Catequista") Light_Gray_Darker else Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (selectedOption == "Catequista") Light_Gray_Darker else Crisma_Primary
+                        ),
                         shape = RoundedCornerShape(0.dp)
                     ) {
                         Text(
@@ -164,33 +168,57 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                 }
             }
 
-            // ÁREA INFERIOR (35%)
-            // ÁREA INFERIOR (35%)
+            // --- ÁREA INFERIOR (35%) ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.35f) // 35% da tela total
+                    .weight(0.35f)
                     .background(Color.White),
-                contentAlignment = Alignment.Center // Centraliza o botão no meio desses 35%
+                contentAlignment = Alignment.Center // Centraliza o conteúdo no Box
             ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarBotaoSair,
-                    enter = fadeIn(tween(1200)) + slideInVertically { 40 }
+                    enter = fadeIn(tween(900)) + slideInVertically { 20 }
                 ) {
-                    Button(
-                        onClick = { if (context is Activity) context.finish() },
+                    Column(
                         modifier = Modifier
-                            .width(160.dp)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker)
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center // Centraliza verticalmente na Column
                     ) {
-                        Text(
-                            "Sair",
-                            color = Crisma_Primary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 15.sp
-                        )
+                        // BOTÃO DE SAIR RETANGULAR ESTILIZADO (ESTILO CARD)
+                        Card(
+                            modifier = Modifier
+                                .width(160.dp)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    if (context is Activity) context.finish()
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Light_Gray_Darker),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ArrowBack,
+                                    contentDescription = "Sair",
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Sair",
+                                    color = Crisma_Primary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    fontFamily = customFont
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -201,19 +229,18 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
     if (showSobreNosDialog) {
         AlertDialog(
             onDismissRequest = { showSobreNosDialog = false },
-            confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido") } },
-            title = { Text("Sobre o CrismAPP") },
+            confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido", color = Crisma_Primary) } },
+            title = { Text("Sobre o CrismAPP", fontWeight = FontWeight.Bold) },
             text = { Text("O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima") }
         )
     }
+
     if (showContatosDialog) {
         AlertDialog(
             onDismissRequest = { showContatosDialog = false },
-            confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar") } },
-            title = { Text("Contatos da Paróquia") },
+            confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar", color = Crisma_Primary) } },
+            title = { Text("Contatos da Paróquia", fontWeight = FontWeight.Bold) },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
         )
     }
 }
-
-

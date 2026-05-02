@@ -5,7 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -52,6 +52,7 @@ fun CrismandoLoginScreen(navController: NavController) {
     var showContatosDialog by remember { mutableStateOf(false) }
 
     var animarImagem by remember { mutableStateOf(false) }
+    var animarTextos by remember { mutableStateOf(false) }
     var animarFormulario by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
@@ -60,37 +61,30 @@ fun CrismandoLoginScreen(navController: NavController) {
         WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
 
         delay(100); animarImagem = true
+        delay(200); animarTextos = true
         delay(300); animarFormulario = true
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
 
-            // ÁREA SUPERIOR (50%) - Cabeçalho Vermelho
+            // ÁREA SUPERIOR (65%)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.5f)
+                    .weight(0.65f)
                     .background(Crisma_Primary)
                     .padding(horizontal = 16.dp, vertical = 24.dp),
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .padding(top = 20.dp),
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
                     UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
                 }
 
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(top = 65.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
+                Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
                     AnimatedVisibility(
                         visible = animarImagem,
                         enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f)
@@ -98,19 +92,81 @@ fun CrismandoLoginScreen(navController: NavController) {
                         Image(
                             painter = painterResource(id = R.drawable.imagem_crisma),
                             contentDescription = "Logo",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(160.dp)
+                            modifier = Modifier.fillMaxWidth().height(180.dp)
                         )
+                    }
+
+                    AnimatedVisibility(
+                        visible = animarTextos,
+                        enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
+                    ) {
+                        Column {
+                            Text(
+                                "\nLogin do Crismando",
+                                fontSize = 24.sp,
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = customFont
+                            )
+                            HorizontalDivider(
+                                color = Crisma_Gold,
+                                thickness = 2.dp,
+                                modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp)
+                            )
+                            Text(
+                                "\"Recebereis a força do Espírito Santo.\" \n(At 1,8)",
+                                fontSize = 16.sp,
+                                color = Color.White,
+                                fontFamily = customFont
+                            )
+                        }
                     }
                 }
             }
 
-            // ÁREA INFERIOR (50%) - Formulário de Login (Fundo Branco)
+            // --- BARRA CENTRAL COM FUNDO BRANCO ---
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(screenHeight * 0.08f)
+                        .offset(y = -(screenHeight * 0.04f))
+                        .background(Color.White)
+                ) {
+                    Button(
+                        onClick = { /* Já está no Crismando */ },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
+                        shape = RoundedCornerShape(0.dp)
+                    ) {
+                        Text("Crismando", color = Crisma_Primary, fontWeight = FontWeight.Bold)
+                    }
+
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
+
+                    Button(
+                        onClick = {
+                            navController.navigate("LoginCatequista") {
+                                launchSingleTop = true
+                            }
+                        },
+                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
+                        shape = RoundedCornerShape(0.dp)
+                    ) {
+                        Text("Catequista", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+
+            // --- ÁREA INFERIOR (35%) ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.5f)
+                    .weight(0.35f)
                     .background(Color.White),
                 contentAlignment = Alignment.TopCenter
             ) {
@@ -121,96 +177,73 @@ fun CrismandoLoginScreen(navController: NavController) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 24.dp, vertical = 16.dp),
+                            .padding(horizontal = 24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.SpaceBetween
+                        verticalArrangement = Arrangement.Top
                     ) {
-                        Column(
+                        // Campo Usuário
+                        OutlinedTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = { Text("Usuário", fontWeight = FontWeight.Medium) },
+                            leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, tint = Crisma_Primary) },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(62.dp)
+                                .border(2.dp, Crisma_Primary, RoundedCornerShape(16.dp)),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedLabelColor = Crisma_Primary,
+                                unfocusedLabelColor = Crisma_Primary,
+                                focusedTextColor = Crisma_Primary,
+                                unfocusedTextColor = Crisma_Primary,
+                                cursorColor = Crisma_Primary
+                            ),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        // Campo Senha
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Senha", fontWeight = FontWeight.Medium) },
+                            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null, tint = Crisma_Primary) },
+                            trailingIcon = {
+                                val icon = if (passwordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff
+                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                    Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary)
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(62.dp)
+                                .border(2.dp, Crisma_Primary, RoundedCornerShape(16.dp)),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color.Transparent,
+                                unfocusedBorderColor = Color.Transparent,
+                                focusedLabelColor = Crisma_Primary,
+                                unfocusedLabelColor = Crisma_Primary,
+                                focusedTextColor = Crisma_Primary,
+                                unfocusedTextColor = Crisma_Primary,
+                                cursorColor = Crisma_Primary
+                            ),
+                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            singleLine = true
+                        )
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Botões de Ação
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Text(
-                                "Acesse sua Conta",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                fontFamily = customFont
-                            )
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
-                            // Campo de Usuário / E-mail
-                            OutlinedTextField(
-                                value = username,
-                                onValueChange = { username = it },
-                                label = { Text("Usuário ou E-mail") },
-                                leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, tint = Crisma_Primary) },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Crisma_Primary,
-                                    focusedLabelColor = Crisma_Primary,
-                                    cursorColor = Crisma_Primary
-                                ),
-                                singleLine = true
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Campo de Senha
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it },
-                                label = { Text("Senha") },
-                                leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null, tint = Crisma_Primary) },
-                                trailingIcon = {
-                                    val icon = if (passwordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff
-                                    IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                        Icon(imageVector = icon, contentDescription = null, tint = Color.Gray)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = Crisma_Primary,
-                                    focusedLabelColor = Crisma_Primary,
-                                    cursorColor = Crisma_Primary
-                                ),
-                                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                                singleLine = true
-                            )
-                        }
-
-                        // Botões de Ação na parte inferior do Form
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Button(
-                                onClick = {
-                                    // Bypass temporário: Sempre navega para a tela do crismando
-                                    navController.navigate("crismandoScreen") {
-                                        popUpTo("crismandoLoginScreen") { inclusive = true }
-                                    }
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(48.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    "Entrar",
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            // Botão Voltar para a Seleção de Usuário
                             Button(
                                 onClick = {
                                     navController.navigate("userSelection") {
@@ -218,15 +251,35 @@ fun CrismandoLoginScreen(navController: NavController) {
                                     }
                                 },
                                 modifier = Modifier
-                                    .width(160.dp)
-                                    .height(44.dp),
+                                    .weight(1f)
+                                    .height(52.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
-                                shape = RoundedCornerShape(12.dp)
+                                shape = RoundedCornerShape(16.dp)
                             ) {
                                 Text(
                                     "Voltar",
                                     color = Crisma_Primary,
-                                    fontSize = 14.sp,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            Button(
+                                onClick = {
+                                    navController.navigate("crismandoScreen") {
+                                        popUpTo("crismandoLoginScreen") { inclusive = true }
+                                    }
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(52.dp),
+                                colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
+                                shape = RoundedCornerShape(16.dp)
+                            ) {
+                                Text(
+                                    "Entrar",
+                                    color = Color.White,
+                                    fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -248,7 +301,6 @@ fun CrismandoLoginScreen(navController: NavController) {
             },
             title = { Text("Sobre o CrismAPP", fontWeight = FontWeight.Bold) },
             text = { Text("O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima") }
-
         )
     }
 
@@ -262,7 +314,6 @@ fun CrismandoLoginScreen(navController: NavController) {
             },
             title = { Text("Contatos", fontWeight = FontWeight.Bold) },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
-
         )
     }
 }

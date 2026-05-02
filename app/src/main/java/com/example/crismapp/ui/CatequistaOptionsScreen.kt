@@ -9,16 +9,17 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -38,7 +39,6 @@ private val customFont = FontFamily.Default
 @Composable
 fun CatequistaOptionsScreen(navController: NavController) {
     val view = LocalView.current
-    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
@@ -132,7 +132,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
                 }
             }
 
-            // --- BARRA CENTRAL (ÂNCORA COM NAVEGAÇÃO) ---
+            // --- BARRA CENTRAL COM FUNDO BRANCO ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -142,27 +142,27 @@ fun CatequistaOptionsScreen(navController: NavController) {
                         .fillMaxWidth()
                         .height(screenHeight * 0.08f)
                         .offset(y = -(screenHeight * 0.04f))
-                        .background(Crisma_Primary)
+                        .background(Color.White)
                 ) {
                     Button(
                         onClick = {
                             navController.navigate("turmaJovemScreen")
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
                     ) {
                         Text("Turma Jovem", color = Color.White, fontWeight = FontWeight.Bold)
                     }
 
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.3f)))
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
 
                     Button(
                         onClick = {
                             navController.navigate("turmaAdultaScreen")
                         },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
                     ) {
                         Text("Turma Adulta", color = Color.White, fontWeight = FontWeight.Bold)
@@ -170,31 +170,60 @@ fun CatequistaOptionsScreen(navController: NavController) {
                 }
             }
 
-            // ÁREA INFERIOR (35%)
+            // --- ÁREA INFERIOR (35%) ---
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.35f)
                     .background(Color.White),
-                contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center // Centraliza o conteúdo do Box
             ) {
                 androidx.compose.animation.AnimatedVisibility(
                     visible = animarBotoes,
-                    enter = fadeIn(tween(1000)) + slideInVertically { 40 }
+                    enter = fadeIn(tween(900)) + slideInVertically { 20 }
                 ) {
-                    Button(
-                        onClick = {
-                            navController.navigate("loginCatequista") {
-                                popUpTo("catequistaOptions") { inclusive = true }
-                            }
-                        },
+                    Column(
                         modifier = Modifier
-                            .width(160.dp)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker)
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center // Centraliza os itens verticalmente na Column
                     ) {
-                        Text("Sair", color = Crisma_Primary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                        // BOTÃO RETANGULAR ESTILIZADO COM ÍCONE + TEXTO CENTRALIZADO
+                        Card(
+                            modifier = Modifier
+                                .width(160.dp)
+                                .height(52.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .clickable {
+                                    navController.navigate("loginCatequista") {
+                                        popUpTo(0) { inclusive = true }
+                                        launchSingleTop = true
+                                    }
+                                },
+                            colors = CardDefaults.cardColors(containerColor = Light_Gray_Darker),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.ArrowBack,
+                                    contentDescription = "Sair",
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Text(
+                                    text = "Sair",
+                                    color = Crisma_Primary,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp,
+                                    fontFamily = customFont
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -205,16 +234,16 @@ fun CatequistaOptionsScreen(navController: NavController) {
     if (showSobreNosDialog) {
         AlertDialog(
             onDismissRequest = { showSobreNosDialog = false },
-            confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido") } },
-            title = { Text("Sobre o CrismAPP") },
+            confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido", color = Crisma_Primary) } },
+            title = { Text("Sobre o CrismAPP", fontWeight = FontWeight.Bold) },
             text = { Text("O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima") }
         )
     }
     if (showContatosDialog) {
         AlertDialog(
             onDismissRequest = { showContatosDialog = false },
-            confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar") } },
-            title = { Text("Contatos") },
+            confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar", color = Crisma_Primary) } },
+            title = { Text("Contatos", fontWeight = FontWeight.Bold) },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
         )
     }

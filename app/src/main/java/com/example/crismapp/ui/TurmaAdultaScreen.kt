@@ -104,7 +104,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp)
                             )
                             Text(
-                                "Ide e fazei discípulos em todas as nações.",
+                                "\"Ide e fazei discípulos em todas as nações.\" \n(Mt 28,19)",
                                 fontSize = 16.sp,
                                 color = Color.White,
                                 fontFamily = customFont
