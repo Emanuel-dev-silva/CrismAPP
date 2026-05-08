@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,8 +17,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -35,6 +36,7 @@ import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import com.example.crismapp.R
 import kotlinx.coroutines.delay
+import java.util.Locale
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Primary_Light = Color(0xFFFF3333)
@@ -42,29 +44,19 @@ private val Crisma_Gold = Color(0xFFFFD700)
 private val Light_Gray_Darker = Color(0xFFE0E0E0)
 private val customFont = FontFamily.Default
 
-// Enums e Data Classes para estruturação de dados
-enum class TipoPresenca {
-    PRESENCA,
-    FALTA_JUSTIFICADA,
-    FALTA
-}
-
-enum class TipoDocumento {
-    ENTREGUE,
-    NAO_POSSUI,
-    NAO_ENTREGUE
-}
+enum class TipoPresenca { PRESENCA, FALTA_JUSTIFICADA, FALTA }
+enum class TipoDocumento { ENTREGUE, NAO_POSSUI, NAO_ENTREGUE }
 
 data class FrequenciaItem(val title: String, val status: TipoPresenca)
 data class CarneItem(val title: String, val isPaid: Boolean)
 data class DocumentoItem(val title: String, val status: TipoDocumento)
 data class AvisoItem(val text: String, val linkUrl: String? = null)
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrismandoScreen(navController: NavController) {
     val view = LocalView.current
     val configuration = LocalConfiguration.current
-    val uriHandler = LocalUriHandler.current
     val screenHeight = configuration.screenHeightDp.dp
 
     var userName by remember { mutableStateOf("Emanuel") }
@@ -72,10 +64,11 @@ fun CrismandoScreen(navController: NavController) {
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
 
-    var showPresencasDialog by remember { mutableStateOf(false) }
-    var showAvisosDialog by remember { mutableStateOf(false) }
-    var showCarneDialog by remember { mutableStateOf(false) }
-    var showDocumentosDialog by remember { mutableStateOf(false) }
+    // Estados dos Popups
+    var showPresencasPopup by remember { mutableStateOf(false) }
+    var showAvisosPopup by remember { mutableStateOf(false) }
+    var showCarnePopup by remember { mutableStateOf(false) }
+    var showDocumentosPopup by remember { mutableStateOf(false) }
 
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
@@ -164,7 +157,6 @@ fun CrismandoScreen(navController: NavController) {
                         .background(Color.White),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Lado Esquerdo: Saudação
                     Box(
                         modifier = Modifier
                             .weight(1.2f)
@@ -181,7 +173,6 @@ fun CrismandoScreen(navController: NavController) {
                         )
                     }
 
-                    // Divisor Dourado
                     Box(
                         Modifier
                             .width(2.dp)
@@ -189,13 +180,12 @@ fun CrismandoScreen(navController: NavController) {
                             .background(Crisma_Gold)
                     )
 
-                    // Lado Direito: Botão de Documentos com status visual
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                             .background(Color.White)
-                            .clickable { showDocumentosDialog = true },
+                            .clickable { showDocumentosPopup = true },
                         contentAlignment = Alignment.Center
                     ) {
                         Row(
@@ -243,10 +233,10 @@ fun CrismandoScreen(navController: NavController) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             SmallMenuCard(title = "Frequência", icon = Icons.Outlined.DateRange, modifier = Modifier.weight(1f)) {
-                                showPresencasDialog = true
+                                showPresencasPopup = true
                             }
                             SmallMenuCard(title = "Avisos", icon = Icons.Outlined.Notifications, modifier = Modifier.weight(1f)) {
-                                showAvisosDialog = true
+                                showAvisosPopup = true
                             }
                         }
 
@@ -257,7 +247,7 @@ fun CrismandoScreen(navController: NavController) {
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             SmallMenuCard(title = "Carnê", icon = Icons.Outlined.Payments, modifier = Modifier.weight(1f)) {
-                                showCarneDialog = true
+                                showCarnePopup = true
                             }
                             SmallMenuCard(title = "Sair", icon = Icons.Outlined.ArrowBack, modifier = Modifier.weight(1f)) {
                                 navController.navigate("crismandoLoginScreen") {
@@ -265,7 +255,6 @@ fun CrismandoScreen(navController: NavController) {
                                 }
                             }
                         }
-
                         Spacer(modifier = Modifier.weight(1f))
                     }
                 }
@@ -304,575 +293,303 @@ fun CrismandoScreen(navController: NavController) {
         )
     }
 
-    // --- POPUPS DE INFORMAÇÃO DO CRISMANDO ---
+    // --- POPUPS DE LISTAGEM ---
 
-    if (showPresencasDialog) {
-        FrequenciaPopupScreen(
-            title = "veja suas presenças",
-            onDismiss = { showPresencasDialog = false },
-            items = listOf(
+    if (showPresencasPopup) {
+        CustomPopup(
+            title = "Veja suas presenças:",
+            onDismiss = { showPresencasPopup = false }
+        ) {
+            val presencas = listOf(
                 FrequenciaItem("Encontro 01 - Presença confirmada", TipoPresenca.PRESENCA),
                 FrequenciaItem("Encontro 02 - Presença confirmada", TipoPresenca.PRESENCA),
                 FrequenciaItem("Encontro 03 - Presença confirmada", TipoPresenca.PRESENCA),
                 FrequenciaItem("Encontro 04 - Falta justificada", TipoPresenca.FALTA_JUSTIFICADA),
                 FrequenciaItem("Encontro 05 - Falta", TipoPresenca.FALTA)
             )
-        )
+            items(presencas) { item ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, color = Color(0xFFEEEEEE))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val (statusIcon, statusColor) = when (item.status) {
+                            TipoPresenca.PRESENCA -> Pair(Icons.Outlined.CheckCircle, Color(0xFF4CAF50))
+                            TipoPresenca.FALTA_JUSTIFICADA -> Pair(Icons.Outlined.ErrorOutline, Color(0xFFFF9800))
+                            TipoPresenca.FALTA -> Pair(Icons.Outlined.Cancel, Color(0xFFE53935))
+                        }
+                        Icon(imageVector = statusIcon, contentDescription = null, tint = statusColor, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = item.title, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = customFont)
+                    }
+                }
+            }
+        }
     }
 
-    // 2. Popup de Avisos (Link do WhatsApp integrado aqui agora)
-    if (showAvisosDialog) {
-        AvisosPopupScreen(
-            title = "últimos avisos",
-            onDismiss = { showAvisosDialog = false },
-            items = listOf(
-                AvisoItem("Missa de entrega no próximo domingo às 19h."),
-                AvisoItem("Não haverá encontro no feriado de Tiradentes."),
+    if (showAvisosPopup) {
+        val uriHandler = LocalUriHandler.current
+        CustomPopup(
+            title = "Últimos avisos:",
+            onDismiss = { showAvisosPopup = false }
+        ) {
+            val avisos = listOf(
+                AvisoItem("Preseça necessária na missa de sábado"),
+                AvisoItem("Não haverá encontro no sábado de aleluia."),
                 AvisoItem("Trazer a bíblia e caderno no próximo encontro."),
-                AvisoItem("Entre no grupo oficial do WhatsApp da turma", "https://chat.whatsapp.com/ExemploCodigoDoGrupo")
+                AvisoItem("Entre no grupo da WhatsApp da turma", "https://chat.whatsapp.com/ExemploCodigoDoGrupo")
             )
-        )
+            items(avisos) { item ->
+                val isLink = item.linkUrl != null
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (isLink) Modifier.clickable { item.linkUrl?.let { uriHandler.openUri(it) } } else Modifier),
+                    colors = CardDefaults.cardColors(containerColor = if (isLink) Color(0xFFE8F5E9) else Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, color = if (isLink) Color(0xFF81C784) else Color(0xFFEEEEEE))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (isLink) Icons.Outlined.Link else Icons.Outlined.Label,
+                            contentDescription = null,
+                            tint = if (isLink) Color(0xFF2E7D32) else Crisma_Primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = item.text, color = if (isLink) Color(0xFF1B5E20) else Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = customFont)
+                    }
+                }
+            }
+        }
     }
 
-    if (showCarneDialog) {
-        CarnePopupScreen(
-            title = "carnês pagos",
-            onDismiss = { showCarneDialog = false },
-            items = listOf(
+    if (showCarnePopup) {
+        CustomPopup(
+            title = "Carnês pagos:",
+            onDismiss = { showCarnePopup = false }
+        ) {
+            val carnes = listOf(
                 CarneItem("Parcela 01 - Paga", isPaid = true),
                 CarneItem("Parcela 02 - Paga", isPaid = true),
                 CarneItem("Parcela 03 - Paga", isPaid = true),
                 CarneItem("Parcela 04 - Pendente", isPaid = false)
             )
-        )
+            items(carnes) { item ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, color = Color(0xFFEEEEEE))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = if (item.isPaid) Icons.Outlined.CheckCircle else Icons.Outlined.Cancel,
+                            contentDescription = null,
+                            tint = if (item.isPaid) Color(0xFF4CAF50) else Color(0xFFE53935),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = item.title, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = customFont)
+                    }
+                }
+            }
+        }
     }
 
-    if (showDocumentosDialog) {
-        DocumentosPopupScreen(
-            title = "situação de documentos",
-            onDismiss = { showDocumentosDialog = false },
-            items = listOf(
-                DocumentoItem("Ficha do Padrinho/Madrinha: Não entregue", TipoDocumento.NAO_ENTREGUE),
+    if (showDocumentosPopup) {
+        CustomPopup(
+            title = "Situação dos documentos:",
+            onDismiss = { showDocumentosPopup = false }
+        ) {
+            val documentos = listOf(
+                DocumentoItem("Ficha do Padrinho: Não entregue", TipoDocumento.NAO_ENTREGUE),
                 DocumentoItem("Lembrança do Batismo: Entregue", TipoDocumento.ENTREGUE),
                 DocumentoItem("Lembrança da 1ª Eucaristia: Não possui", TipoDocumento.NAO_POSSUI)
             )
+            items(documentos) { item ->
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(8.dp),
+                    border = BorderStroke(1.dp, color = Color(0xFFEEEEEE))
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        val (statusIcon, statusColor) = when (item.status) {
+                            TipoDocumento.ENTREGUE -> Pair(Icons.Outlined.CheckCircle, Color(0xFF4CAF50))
+                            TipoDocumento.NAO_POSSUI -> Pair(Icons.Outlined.ErrorOutline, Color(0xFFFF9800))
+                            TipoDocumento.NAO_ENTREGUE -> Pair(Icons.Outlined.Cancel, Color(0xFFE53935))
+                        }
+                        Icon(imageVector = statusIcon, contentDescription = null, tint = statusColor, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(text = item.title, color = Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = customFont)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- COMPONENTE POPUP CORRIGIDO ---
+@Composable
+fun CustomPopup(
+    title: String,
+    onDismiss: () -> Unit,
+    content: androidx.compose.foundation.lazy.LazyListScope.() -> Unit
+) {
+    val configuration = LocalConfiguration.current
+    val screenHeight = configuration.screenHeightDp.dp
+
+    // Capitaliza apenas a primeira letra para o título
+    val formattedTitle = title.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(screenHeight * 0.52f)
+                .padding(horizontal = 4.dp)
+                .background(Color.White, shape = RoundedCornerShape(4.dp))
+                .border(1.dp, Crisma_Primary, shape = RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(4.dp))
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Crisma_Primary)
+                        .padding(vertical = 12.dp, horizontal = 16.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = formattedTitle, // Título agora com capitalização correta
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        fontFamily = customFont,
+                        textAlign = TextAlign.Start,
+                        modifier = Modifier.padding(end = 32.dp)
+                    )
+                    Icon(
+                        imageVector = Icons.Outlined.Close,
+                        contentDescription = "Fechar",
+                        tint = Color.White,
+                        modifier = Modifier
+                            .size(22.dp)
+                            .align(Alignment.CenterEnd)
+                            .clickable { onDismiss() }
+                    )
+                }
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(Color(0xFFF9F9F9))
+                        .padding(start = 12.dp, end = 12.dp, top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    content = content
+                )
+            }
+        }
+    }
+}
+
+// --- COMPONENTES AUXILIARES ---
+
+@Composable
+fun UserIconWithLabel(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.clickable { onClick() }
+    ) {
+        Box(
+            modifier = Modifier.size(40.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = Color.White,
+                modifier = Modifier.size(24.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            color = Color.White,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = customFont
         )
     }
 }
 
-// Popup especializado para Avisos (Suporta textos normais e links clicáveis)
 @Composable
-fun AvisosPopupScreen(
+fun SmallMenuCard(
     title: String,
-    onDismiss: () -> Unit,
-    items: List<AvisoItem>
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
 ) {
-    val uriHandler = LocalUriHandler.current
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(340.dp)
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.4f),
-                    spotColor = Color.Black
-                ),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, color = Light_Gray_Darker.copy(alpha = 0.6f))
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Crisma_Primary_Light, Crisma_Primary)
-                            )
-                        )
-                        .padding(vertical = 14.dp, horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title.uppercase(),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color(0xFFF9F9F9))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(items) { item ->
-                        val isLink = item.linkUrl != null
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 4.dp,
-                                    shape = RoundedCornerShape(10.dp),
-                                    ambientColor = Color.Black.copy(alpha = 0.15f),
-                                    spotColor = Color.Black.copy(alpha = 0.2f)
-                                )
-                                .then(
-                                    if (isLink) Modifier.clickable { uriHandler.openUri(item.linkUrl!!) }
-                                    else Modifier
-                                ),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (isLink) Color(0xFFE8F5E9) else Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(
-                                width = 1.dp,
-                                color = if (isLink) Color(0xFF81C784) else Color(0xFFEEEEEE)
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isLink) Icons.Outlined.Link else Icons.Outlined.Label,
-                                    contentDescription = null,
-                                    tint = if (isLink) Color(0xFF2E7D32) else Crisma_Primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = item.text,
-                                    color = if (isLink) Color(0xFF1B5E20) else Color.Black,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = customFont
-                                )
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = Light_Gray_Darker, thickness = 1.dp)
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFAFAFA))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "FECHAR",
-                        color = Color.Black,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont
-                    )
-                }
-            }
-        }
-    }
-}
-
-// Popup especializado para Documentos
-@Composable
-fun DocumentosPopupScreen(
-    title: String,
-    onDismiss: () -> Unit,
-    items: List<DocumentoItem>
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(340.dp)
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.4f),
-                    spotColor = Color.Black
-                ),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, color = Light_Gray_Darker.copy(alpha = 0.6f))
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Crisma_Primary_Light, Crisma_Primary)
-                            )
-                        )
-                        .padding(vertical = 14.dp, horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title.uppercase(),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color(0xFFF9F9F9))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(items) { item ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 4.dp,
-                                    shape = RoundedCornerShape(10.dp),
-                                    ambientColor = Color.Black.copy(alpha = 0.15f),
-                                    spotColor = Color.Black.copy(alpha = 0.2f)
-                                ),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, color = Color(0xFFEEEEEE))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val (statusIcon, statusColor) = when (item.status) {
-                                    TipoDocumento.ENTREGUE -> Pair(Icons.Outlined.CheckCircle, Color(0xFF4CAF50))
-                                    TipoDocumento.NAO_POSSUI -> Pair(Icons.Outlined.ErrorOutline, Color(0xFFFF9800))
-                                    TipoDocumento.NAO_ENTREGUE -> Pair(Icons.Outlined.Cancel, Color(0xFFE53935))
-                                }
-
-                                Icon(
-                                    imageVector = statusIcon,
-                                    contentDescription = null,
-                                    tint = statusColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = item.title,
-                                    color = Color.Black,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = customFont
-                                )
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = Light_Gray_Darker, thickness = 1.dp)
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFAFAFA))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "FECHAR",
-                        color = Color.Black,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont
-                    )
-                }
-            }
-        }
-    }
-}
-
-// Popup especializado para Frequência
-@Composable
-fun FrequenciaPopupScreen(
-    title: String,
-    onDismiss: () -> Unit,
-    items: List<FrequenciaItem>
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(340.dp)
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.4f),
-                    spotColor = Color.Black
-                ),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, color = Light_Gray_Darker.copy(alpha = 0.6f))
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Crisma_Primary_Light, Crisma_Primary)
-                            )
-                        )
-                        .padding(vertical = 14.dp, horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title.uppercase(),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color(0xFFF9F9F9))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(items) { item ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 4.dp,
-                                    shape = RoundedCornerShape(10.dp),
-                                    ambientColor = Color.Black.copy(alpha = 0.15f),
-                                    spotColor = Color.Black.copy(alpha = 0.2f)
-                                ),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, color = Color(0xFFEEEEEE))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val (statusIcon, statusColor) = when (item.status) {
-                                    TipoPresenca.PRESENCA -> Pair(Icons.Outlined.CheckCircle, Color(0xFF4CAF50))
-                                    TipoPresenca.FALTA_JUSTIFICADA -> Pair(Icons.Outlined.ErrorOutline, Color(0xFFFF9800))
-                                    TipoPresenca.FALTA -> Pair(Icons.Outlined.Cancel, Color(0xFFE53935))
-                                }
-
-                                Icon(
-                                    imageVector = statusIcon,
-                                    contentDescription = null,
-                                    tint = statusColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = item.title,
-                                    color = Color.Black,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = customFont
-                                )
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = Light_Gray_Darker, thickness = 1.dp)
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFAFAFA))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "FECHAR",
-                        color = Color.Black,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont
-                    )
-                }
-            }
-        }
-    }
-}
-
-// Popup especializado para Carnê
-@Composable
-fun CarnePopupScreen(
-    title: String,
-    onDismiss: () -> Unit,
-    items: List<CarneItem>
-) {
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(340.dp)
-                .shadow(
-                    elevation = 20.dp,
-                    shape = RoundedCornerShape(16.dp),
-                    ambientColor = Color.Black.copy(alpha = 0.4f),
-                    spotColor = Color.Black
-                ),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            border = BorderStroke(1.dp, color = Light_Gray_Darker.copy(alpha = 0.6f))
-        ) {
-            Column(modifier = Modifier.fillMaxSize()) {
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            brush = Brush.verticalGradient(
-                                colors = listOf(Crisma_Primary_Light, Crisma_Primary)
-                            )
-                        )
-                        .padding(vertical = 14.dp, horizontal = 16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = title.uppercase(),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont,
-                        textAlign = TextAlign.Center
-                    )
-                }
-
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .background(Color(0xFFF9F9F9))
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(items) { item ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 4.dp,
-                                    shape = RoundedCornerShape(10.dp),
-                                    ambientColor = Color.Black.copy(alpha = 0.15f),
-                                    spotColor = Color.Black.copy(alpha = 0.2f)
-                                ),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, color = Color(0xFFEEEEEE))
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                val statusIcon = if (item.isPaid) Icons.Outlined.CheckCircle else Icons.Outlined.ErrorOutline
-                                val statusColor = if (item.isPaid) Color(0xFF4CAF50) else Color(0xFFFF9800)
-
-                                Icon(
-                                    imageVector = statusIcon,
-                                    contentDescription = null,
-                                    tint = statusColor,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                                Spacer(modifier = Modifier.width(10.dp))
-                                Text(
-                                    text = item.title,
-                                    color = Color.Black,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    fontFamily = customFont
-                                )
-                            }
-                        }
-                    }
-                }
-
-                HorizontalDivider(color = Light_Gray_Darker, thickness = 1.dp)
-
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(Color(0xFFFAFAFA))
-                        .clickable { onDismiss() }
-                        .padding(vertical = 14.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "FECHAR",
-                        color = Color.Black,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        fontFamily = customFont
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SmallMenuCard(title: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier
             .height(100.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF5F5F5)),
-        elevation = CardDefaults.cardElevation(2.dp)
+            .clickable { onClick() }
+            .shadow(
+                elevation = 2.dp,
+                shape = RoundedCornerShape(12.dp)
+            ),
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, color = Color(0xFFF0F0F0))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(8.dp),
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary, modifier = Modifier.size(32.dp))
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black, textAlign = TextAlign.Center)
+            Box(
+                modifier = Modifier.size(40.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = title,
+                    tint = Crisma_Primary,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = title,
+                color = Color.Black,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = customFont,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-    }
-}
-
-@Composable
-fun UserIconWithLabel(icon: ImageVector, label: String, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.clickable(onClick = onClick)) {
-        Icon(imageVector = icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
-        Text(text = label, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Medium)
     }
 }

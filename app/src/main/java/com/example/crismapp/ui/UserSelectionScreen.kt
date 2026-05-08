@@ -3,6 +3,7 @@ package com.example.crismapp.ui
 import android.app.Activity
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,9 +18,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -57,16 +59,13 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextosSuperior by remember { mutableStateOf(false) }
     var animarLabelsBotoes by remember { mutableStateOf(false) }
-    var animarBotaoSair by remember { mutableStateOf(true) }
+    var animarBotaoSair by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        delay(100)
-        animarImagem = true
-        animarBotaoSair = true
-        delay(200)
-        animarTextosSuperior = true
-        delay(200)
-        animarLabelsBotoes = true
+        delay(100); animarImagem = true
+        delay(200); animarTextosSuperior = true
+        delay(300); animarLabelsBotoes = true
+        delay(400); animarBotaoSair = true
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -81,10 +80,7 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                     .padding(horizontal = 16.dp, vertical = 24.dp)
             ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(Alignment.TopCenter)
-                        .padding(top = 20.dp),
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
@@ -92,39 +88,33 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
-                    androidx.compose.animation.AnimatedVisibility(
+                    AnimatedVisibility(
                         visible = animarImagem,
                         enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f),
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     ) {
                         Image(
                             painter = painterResource(id = R.drawable.imagem_crisma),
-                            contentDescription = "Logo CrismAPP",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(180.dp)
-                                .padding(top = 10.dp)
+                            contentDescription = "Logo",
+                            modifier = Modifier.fillMaxWidth().height(180.dp)
                         )
                     }
 
-                    androidx.compose.animation.AnimatedVisibility(
+                    AnimatedVisibility(
                         visible = animarTextosSuperior,
                         enter = fadeIn(tween(1000)) + slideInVertically { it / 4 }
                     ) {
                         Column {
-                            Text("\nOlá, bem-vindo ao CrismAPP", fontSize = 22.sp, color = Color.White, fontFamily = customFont, fontWeight = FontWeight.Bold)
+                            Text("\nOlá, bem-vindo ao CrismAPP", fontSize = 22.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             HorizontalDivider(color = Crisma_Gold, thickness = 2.dp, modifier = Modifier.fillMaxWidth(0.7f).padding(vertical = 12.dp))
-                            Text("Selecione seu perfil para continuar sua jornada espiritual.", fontSize = 16.sp, color = Color.White, fontFamily = customFont)
+                            Text("Selecione seu perfil para continuar sua jornada espiritual.", fontSize = 16.sp, color = Color.White)
                         }
                     }
                 }
             }
 
-            // --- BARRA CENTRAL COM FUNDO BRANCO ---
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center
-            ) {
+            // --- BARRA CENTRAL ---
+            Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -135,91 +125,36 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
                     Button(
                         onClick = { selectedOption = "Crismando"; onCrismandoSelected() },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedOption == "Crismando") Light_Gray_Darker else Crisma_Primary
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (selectedOption == "Crismando") Light_Gray_Darker else Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
                     ) {
-                        Text(
-                            "Crismando",
-                            color = if (selectedOption == "Crismando") Crisma_Primary else Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f)
-                        )
+                        Text("Crismando", color = if (selectedOption == "Crismando") Crisma_Primary else Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f))
                     }
-
                     Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
-
                     Button(
                         onClick = { selectedOption = "Catequista"; onCatequistaSelected() },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = if (selectedOption == "Catequista") Light_Gray_Darker else Crisma_Primary
-                        ),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (selectedOption == "Catequista") Light_Gray_Darker else Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
                     ) {
-                        Text(
-                            "Catequista",
-                            color = if (selectedOption == "Catequista") Crisma_Primary else Color.White,
-                            fontWeight = FontWeight.Bold,
-                            modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f)
-                        )
+                        Text("Catequista", color = if (selectedOption == "Catequista") Crisma_Primary else Color.White, fontWeight = FontWeight.Bold, modifier = Modifier.alpha(if (animarLabelsBotoes) 1f else 0f))
                     }
                 }
             }
 
             // --- ÁREA INFERIOR (35%) ---
             Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(0.35f)
-                    .background(Color.White),
-                contentAlignment = Alignment.Center // Centraliza o conteúdo no Box
+                modifier = Modifier.fillMaxWidth().weight(0.35f).background(Color.White),
+                contentAlignment = Alignment.Center
             ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = animarBotaoSair,
-                    enter = fadeIn(tween(900)) + slideInVertically { 20 }
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center // Centraliza verticalmente na Column
-                    ) {
-                        // BOTÃO DE SAIR RETANGULAR ESTILIZADO (ESTILO CARD)
-                        Card(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .height(52.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    if (context is Activity) context.finish()
-                                },
-                            colors = CardDefaults.cardColors(containerColor = Light_Gray_Darker),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.ArrowBack,
-                                    contentDescription = "Sair",
-                                    tint = Crisma_Primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "Sair",
-                                    color = Crisma_Primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    fontFamily = customFont
-                                )
-                            }
-                        }
-                    }
+                if (animarBotaoSair) {
+                    // BOTÃO SAIR RETANGULAR COM ÍCONE AO LADO DO NOME
+                    ExitMenuCard(
+                        title = "Sair",
+                        icon = Icons.Outlined.ArrowBack,
+                        modifier = Modifier.width(170.dp),
+                        onClick = { if (context is Activity) context.finish() }
+                    )
                 }
             }
         }
@@ -242,5 +177,48 @@ fun UserSelectionScreen(onCrismandoSelected: () -> Unit, onCatequistaSelected: (
             title = { Text("Contatos da Paróquia", fontWeight = FontWeight.Bold) },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
         )
+    }
+}
+
+/**
+ * Componente exclusivo para o botão Sair desta tela.
+ * Ícone e texto lado a lado, formato retangular (4.dp).
+ */
+@Composable
+fun ExitMenuCard(
+    title: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    Card(
+        modifier = modifier
+            .height(65.dp) // Altura menor para combinar com a linha única
+            .clickable { onClick() }
+            .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp)),
+        shape = RoundedCornerShape(4.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        border = BorderStroke(1.dp, color = Color(0xFFF0F0F0))
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = Crisma_Primary,
+                modifier = Modifier.size(24.dp)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = title,
+                color = Color.Black,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = customFont
+            )
+        }
     }
 }

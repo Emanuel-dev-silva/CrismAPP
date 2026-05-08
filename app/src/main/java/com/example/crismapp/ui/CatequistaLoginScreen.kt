@@ -5,16 +5,18 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.Login
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
@@ -85,21 +87,15 @@ fun CatequistaLoginScreen(navController: NavController) {
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
-                    AnimatedVisibility(
-                        visible = animarImagem,
-                        enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f)
-                    ) {
+                    if (animarImagem) {
                         Image(
                             painter = painterResource(id = R.drawable.imagem_crisma),
                             contentDescription = "Logo",
-                            modifier = Modifier.fillMaxWidth().height(180.dp)
+                            modifier = Modifier.fillMaxWidth().height(180.dp).align(Alignment.CenterHorizontally)
                         )
                     }
 
-                    AnimatedVisibility(
-                        visible = animarTextos,
-                        enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
-                    ) {
+                    if (animarTextos) {
                         Column {
                             Text(
                                 "\nLogin do Catequista",
@@ -124,7 +120,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                 }
             }
 
-            // --- BARRA CENTRAL COM FUNDO BRANCO ---
+            // --- BARRA CENTRAL ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -170,10 +166,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                     .background(Color.White),
                 contentAlignment = Alignment.TopCenter
             ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = animarFormulario,
-                    enter = fadeIn(tween(900)) + slideInVertically { 20 }
-                ) {
+                if (animarFormulario) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -181,8 +174,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Top
                     ) {
-
-                        // Campo Usuário
+                        // Campo Usuário (Sombra 2.dp)
                         OutlinedTextField(
                             value = username,
                             onValueChange = { username = it },
@@ -190,16 +182,15 @@ fun CatequistaLoginScreen(navController: NavController) {
                             leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, tint = Crisma_Primary) },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(62.dp)
-                                .border(2.dp, Crisma_Primary, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
+                                .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp)),
+                            shape = RoundedCornerShape(4.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = Crisma_Primary,
+                                unfocusedBorderColor = Color(0xFFF0F0F0),
                                 focusedLabelColor = Crisma_Primary,
-                                unfocusedLabelColor = Crisma_Primary, // Rótulo em vermelho quando não focado
-                                focusedTextColor = Crisma_Primary, // Texto digitado em vermelho quando focado
-                                unfocusedTextColor = Crisma_Primary, // Texto digitado em vermelho quando não focado
+                                unfocusedLabelColor = Color.Gray,
                                 cursorColor = Crisma_Primary
                             ),
                             singleLine = true
@@ -207,7 +198,7 @@ fun CatequistaLoginScreen(navController: NavController) {
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        // Campo Senha
+                        // Campo Senha (Sombra 2.dp)
                         OutlinedTextField(
                             value = password,
                             onValueChange = { password = it },
@@ -216,21 +207,20 @@ fun CatequistaLoginScreen(navController: NavController) {
                             trailingIcon = {
                                 val icon = if (passwordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff
                                 IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary) // Ícone do olho em vermelho
+                                    Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary)
                                 }
                             },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(62.dp)
-                                .border(2.dp, Crisma_Primary, RoundedCornerShape(16.dp)),
-                            shape = RoundedCornerShape(16.dp),
+                                .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp)),
+                            shape = RoundedCornerShape(4.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color.Transparent,
-                                unfocusedBorderColor = Color.Transparent,
+                                focusedContainerColor = Color.White,
+                                unfocusedContainerColor = Color.White,
+                                focusedBorderColor = Crisma_Primary,
+                                unfocusedBorderColor = Color(0xFFF0F0F0),
                                 focusedLabelColor = Crisma_Primary,
-                                unfocusedLabelColor = Crisma_Primary, // Rótulo em vermelho quando não focado
-                                focusedTextColor = Crisma_Primary, // Texto da senha em vermelho quando focado
-                                unfocusedTextColor = Crisma_Primary, // Texto da senha em vermelho quando não focado
+                                unfocusedLabelColor = Color.Gray,
                                 cursorColor = Crisma_Primary
                             ),
                             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -238,9 +228,9 @@ fun CatequistaLoginScreen(navController: NavController) {
                             singleLine = true
                         )
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                        Spacer(modifier = Modifier.height(20.dp))
 
-                        // Botões de Ação
+                        // Botões de Ação (Elevation 2.dp)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -251,18 +241,14 @@ fun CatequistaLoginScreen(navController: NavController) {
                                         popUpTo("LoginCatequista") { inclusive = true }
                                     }
                                 },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+                                modifier = Modifier.weight(1f).height(52.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(4.dp)
                             ) {
-                                Text(
-                                    "Voltar",
-                                    color = Crisma_Primary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = Crisma_Primary, modifier = Modifier.size(18.dp))
+                                Spacer(Modifier.width(8.dp))
+                                Text("Voltar", color = Crisma_Primary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                             }
 
                             Button(
@@ -271,18 +257,14 @@ fun CatequistaLoginScreen(navController: NavController) {
                                         popUpTo("LoginCatequista") { inclusive = true }
                                     }
                                 },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
+                                elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
+                                modifier = Modifier.weight(1f).height(52.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                                shape = RoundedCornerShape(16.dp)
+                                shape = RoundedCornerShape(4.dp)
                             ) {
-                                Text(
-                                    "Entrar",
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Text("Entrar", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                                Spacer(Modifier.width(8.dp))
+                                Icon(Icons.AutoMirrored.Outlined.Login, null, tint = Color.White, modifier = Modifier.size(18.dp))
                             }
                         }
                     }
@@ -290,16 +272,11 @@ fun CatequistaLoginScreen(navController: NavController) {
             }
         }
     }
-
     // --- DIÁLOGOS ---
     if (showSobreNosDialog) {
         AlertDialog(
             onDismissRequest = { showSobreNosDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showSobreNosDialog = false }) {
-                    Text("Entendido", color = Crisma_Primary)
-                }
-            },
+            confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("Entendido", color = Crisma_Primary) } },
             title = { Text("Sobre o CrismAPP", fontWeight = FontWeight.Bold) },
             text = { Text("O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima") }
         )
@@ -308,11 +285,7 @@ fun CatequistaLoginScreen(navController: NavController) {
     if (showContatosDialog) {
         AlertDialog(
             onDismissRequest = { showContatosDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showContatosDialog = false }) {
-                    Text("Fechar", color = Crisma_Primary)
-                }
-            },
+            confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("Fechar", color = Crisma_Primary) } },
             title = { Text("Contatos", fontWeight = FontWeight.Bold) },
             text = { Text(". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h") }
         )

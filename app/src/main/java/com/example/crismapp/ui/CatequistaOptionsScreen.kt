@@ -5,7 +5,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -16,10 +15,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
@@ -38,6 +38,7 @@ private val customFont = FontFamily.Default
 
 @Composable
 fun CatequistaOptionsScreen(navController: NavController) {
+    val context = LocalContext.current
     val view = LocalView.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
@@ -75,13 +76,9 @@ fun CatequistaOptionsScreen(navController: NavController) {
                     .padding(horizontal = 16.dp, vertical = 24.dp),
             ) {
                 // ÍCONES DE TOPO
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = animarIconesTopo,
-                    enter = fadeIn(tween(1200)),
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp)
-                ) {
+                if (animarIconesTopo) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
@@ -90,24 +87,19 @@ fun CatequistaOptionsScreen(navController: NavController) {
                 }
 
                 Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = animarImagem,
-                        enter = fadeIn(tween(1500)) + scaleIn(initialScale = 0.9f),
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
+                    // Imagem com animação manual para evitar erro de escopo
+                    if (animarImagem) {
                         Image(
                             painter = painterResource(id = R.drawable.imagem_crisma),
                             contentDescription = "Logo CrismAPP",
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(180.dp)
+                                .align(Alignment.CenterHorizontally)
                         )
                     }
 
-                    androidx.compose.animation.AnimatedVisibility(
-                        visible = animarTextos,
-                        enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }
-                    ) {
+                    if (animarTextos) {
                         Column {
                             Text(
                                 "\nPainel do Catequista",
@@ -132,7 +124,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
                 }
             }
 
-            // --- BARRA CENTRAL COM FUNDO BRANCO ---
+            // --- BARRA CENTRAL ---
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -145,9 +137,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
                         .background(Color.White)
                 ) {
                     Button(
-                        onClick = {
-                            navController.navigate("turmaJovemScreen")
-                        },
+                        onClick = { navController.navigate("turmaJovemScreen") },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
@@ -158,9 +148,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
                     Box(Modifier.width(1.dp).fillMaxHeight().background(Crisma_Primary.copy(alpha = 0.3f)))
 
                     Button(
-                        onClick = {
-                            navController.navigate("turmaAdultaScreen")
-                        },
+                        onClick = { navController.navigate("turmaAdultaScreen") },
                         modifier = Modifier.weight(1f).fillMaxHeight(),
                         colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
                         shape = RoundedCornerShape(0.dp)
@@ -176,55 +164,20 @@ fun CatequistaOptionsScreen(navController: NavController) {
                     .fillMaxWidth()
                     .weight(0.35f)
                     .background(Color.White),
-                contentAlignment = Alignment.Center // Centraliza o conteúdo do Box
+                contentAlignment = Alignment.Center
             ) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = animarBotoes,
-                    enter = fadeIn(tween(900)) + slideInVertically { 20 }
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center // Centraliza os itens verticalmente na Column
-                    ) {
-                        // BOTÃO RETANGULAR ESTILIZADO COM ÍCONE + TEXTO CENTRALIZADO
-                        Card(
-                            modifier = Modifier
-                                .width(160.dp)
-                                .height(52.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable {
-                                    navController.navigate("loginCatequista") {
-                                        popUpTo(0) { inclusive = true }
-                                        launchSingleTop = true
-                                    }
-                                },
-                            colors = CardDefaults.cardColors(containerColor = Light_Gray_Darker),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.ArrowBack,
-                                    contentDescription = "Sair",
-                                    tint = Crisma_Primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Text(
-                                    text = "Sair",
-                                    color = Crisma_Primary,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
-                                    fontFamily = customFont
-                                )
+                if (animarBotoes) {
+                    ExitMenuCard(
+                        title = "Sair",
+                        icon = Icons.Outlined.ArrowBack,
+                        modifier = Modifier.width(160.dp),
+                        onClick = {
+                            navController.navigate("loginCatequista") {
+                                popUpTo(0) { inclusive = true }
+                                launchSingleTop = true
                             }
                         }
-                    }
+                    )
                 }
             }
         }
