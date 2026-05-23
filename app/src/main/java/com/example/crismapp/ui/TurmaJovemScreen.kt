@@ -1,6 +1,7 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
@@ -89,17 +90,25 @@ fun TurmaJovemScreen(navController: NavController) {
         delay(300); animarBotoesAcao = true
     }
 
+    // 1. Ouvinte reativo filtrando a categoria correta
     LaunchedEffect(Unit) {
         db.collection("turmas")
+            .whereEqualTo("categoria", "jovem")
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-                listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
-                    val nome = doc.getString("nome") ?: ""
-                    if (nome.isNotEmpty()) Turma(id = doc.id, nome = nome) else null
-                }.sortedBy { it.nome }
+                if (error != null) {
+                    Log.e("FIRESTORE_ERROR", "Erro ao buscar turmas", error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
+                        val nome = doc.getString("nome") ?: ""
+                        if (nome.isNotEmpty()) Turma(id = doc.id, nome = nome) else null
+                    }.sortedBy { it.nome }
+                }
             }
     }
 
+    // 2. Ouvinte reativo para os usuários da turma selecionada
     LaunchedEffect(idTurmaSelecionada) {
         if (idTurmaSelecionada == null) {
             listaCrismandosFirestore = emptyList()
@@ -108,15 +117,18 @@ fun TurmaJovemScreen(navController: NavController) {
         db.collection("usuarios")
             .whereEqualTo("turmaId", idTurmaSelecionada)
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-                listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
-                    val nome = doc.getString("nome") ?: ""
-                    val tId = doc.getString("turmaId") ?: ""
-                    if (nome.isNotEmpty()) Crismando(id = doc.id, nome = nome, turmaId = tId) else null
-                }.sortedBy { it.nome }
+                if (error != null) return@addSnapshotListener
+                if (snapshot != null) {
+                    listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
+                        val nome = doc.getString("nome") ?: ""
+                        val tId = doc.getString("turmaId") ?: ""
+                        if (nome.isNotEmpty()) Crismando(id = doc.id, nome = nome, turmaId = tId) else null
+                    }.sortedBy { it.nome }
+                }
             }
     }
 
+    // 3. Ouvinte reativo dos avisos da pastoral
     LaunchedEffect(Unit) {
         db.collection("avisos")
             .whereEqualTo("turmaId", "turma_jovem")
@@ -219,10 +231,21 @@ fun TurmaJovemScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (novoNomeTurma.isNotBlank()) {
-                                val novaTurmaMap = hashMapOf("nome" to novoNomeTurma)
-                                db.collection("turmas").add(novaTurmaMap)
-                                novoNomeTurma = ""
-                                modoCriarTurma = false
+                                val novaTurmaMap = hashMapOf(
+                                    "nome" to novoNomeTurma,
+                                    "categoria" to "jovem"
+                                )
+                                db.collection("turmas")
+                                    .add(novaTurmaMap)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(context, "Turma criada com sucesso!", Toast.LENGTH_SHORT).show()
+                                        novoNomeTurma = ""
+                                        modoCriarTurma = false
+                                    }
+                                    .addOnFailureListener { err ->
+                                        Log.e("FIRESTORE_WRITE", "Erro ao salvar", err)
+                                        Toast.makeText(context, "Erro ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
+                                    }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -278,9 +301,8 @@ fun TurmaJovemScreen(navController: NavController) {
                                     db.collection("usuarios").document(codigoGerado).set(novoUsuarioMap)
                                         .addOnSuccessListener {
                                             Toast.makeText(context, "Crismando adicionado! Código: $codigoGerado", Toast.LENGTH_LONG).show()
+                                            novoNomeCrismando = ""
                                         }
-
-                                    novoNomeCrismando = ""
                                 }
                             }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
                         }

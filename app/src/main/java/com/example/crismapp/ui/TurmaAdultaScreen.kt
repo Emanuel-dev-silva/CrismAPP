@@ -1,6 +1,7 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
@@ -58,7 +59,7 @@ fun TurmaAdultaScreen(navController: NavController) {
     // Estados de Navegação Interna (IDs vindos do Firestore)
     var idTurmaSelecionada by remember { mutableStateOf<String?>(null) }
     var nomeTurmaSelecionada by remember { mutableStateOf<String?>(null) }
-    var encontroSelecionado by remember { mutableStateOf<Int?>(null) }
+    var encontroSelecionado by remember { mutableStateOf<Int?>(null) } // Corrigido de encuentro para encontro
     var crismandoSelecionado by remember { mutableStateOf<String?>(null) }
 
     // Estados para Edição/Criação
@@ -98,15 +99,21 @@ fun TurmaAdultaScreen(navController: NavController) {
         delay(300); animarBotoesAcao = true
     }
 
-    // 1. Ouvinte em tempo real para carregar as TURMAS do banco
+    // 1. Ouvinte em tempo real para carregar as TURMAS do banco (Apenas Adultas)
     LaunchedEffect(Unit) {
         db.collection("turmas")
+            .whereEqualTo("categoria", "adulta")
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-                listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
-                    val nome = doc.getString("nome") ?: ""
-                    if (nome.isNotEmpty()) Turma(id = doc.id, nome = nome) else null
-                }.sortedBy { it.nome }
+                if (error != null) {
+                    Log.e("FIRESTORE_ERROR", "Erro ao buscar turmas adultas", error)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null) {
+                    listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
+                        val nome = doc.getString("nome") ?: ""
+                        if (nome.isNotEmpty()) Turma(id = doc.id, nome = nome) else null
+                    }.sortedBy { it.nome }
+                }
             }
     }
 
@@ -119,12 +126,14 @@ fun TurmaAdultaScreen(navController: NavController) {
         db.collection("usuarios")
             .whereEqualTo("turmaId", idTurmaSelecionada)
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-                listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
-                    val nome = doc.getString("nome") ?: ""
-                    val tId = doc.getString("turmaId") ?: ""
-                    if (nome.isNotEmpty()) Crismando(id = doc.id, nome = nome, turmaId = tId) else null
-                }.sortedBy { it.nome }
+                if (error != null) return@addSnapshotListener
+                if (snapshot != null) {
+                    listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
+                        val nome = doc.getString("nome") ?: ""
+                        val tId = doc.getString("turmaId") ?: ""
+                        if (nome.isNotEmpty()) Crismando(id = doc.id, nome = nome, turmaId = tId) else null
+                    }.sortedBy { it.nome }
+                }
             }
     }
 
@@ -134,16 +143,12 @@ fun TurmaAdultaScreen(navController: NavController) {
             .whereEqualTo("turmaId", "turma_adulta")
             .addSnapshotListener { snapshot, e ->
                 if (e != null || snapshot == null) return@addSnapshotListener
-
                 listaAvisosAtivos = snapshot.documents.mapNotNull { doc ->
                     val txt = doc.getString("texto") ?: ""
                     val tp = doc.getString("tipo") ?: "gerais"
                     val tId = doc.getString("turmaId") ?: ""
                     val data = doc.getLong("dataCriacao") ?: 0L
-
-                    if (txt.isNotEmpty()) {
-                        Aviso(id = doc.id, texto = txt, tipo = tp, turmaId = tId, dataCriacao = data)
-                    } else null
+                    if (txt.isNotEmpty()) Aviso(id = doc.id, texto = txt, tipo = tp, turmaId = tId, dataCriacao = data) else null
                 }.sortedByDescending { it.dataCriacao }
             }
     }
@@ -224,10 +229,17 @@ fun TurmaAdultaScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (novoNomeTurma.isNotBlank()) {
-                                val novaTurmaMap = hashMapOf("nome" to novoNomeTurma)
-                                db.collection("turmas").add(novaTurmaMap)
-                                novoNomeTurma = ""
-                                modoCriarTurma = false
+                                val novaTurmaMap = hashMapOf(
+                                    "nome" to novoNomeTurma,
+                                    "categoria" to "adulta"
+                                )
+                                db.collection("turmas")
+                                    .add(novaTurmaMap)
+                                    .addOnSuccessListener {
+                                        Toast.makeText(context, "Turma Adulta criada com sucesso!", Toast.LENGTH_SHORT).show()
+                                        novoNomeTurma = ""
+                                        modoCriarTurma = false
+                                    }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -277,9 +289,8 @@ fun TurmaAdultaScreen(navController: NavController) {
                                         .set(novoUsuarioMap)
                                         .addOnSuccessListener {
                                             Toast.makeText(context, "Membro cadastrado! Código: $codigoGerado", Toast.LENGTH_LONG).show()
+                                            novoNomeCrismando = ""
                                         }
-
-                                    novoNomeCrismando = ""
                                 }
                             }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
                         }
@@ -337,7 +348,7 @@ fun TurmaAdultaScreen(navController: NavController) {
         }
     }
 
-    // --- POPUP FREQUÊNCIA ---
+    // --- POPUP FREQUÊNCIA CORRIGIDO ---
     if (showFrequenciaPopup) {
         CustomPopup(title = "Frequência Adultos", onDismiss = { showFrequenciaPopup = false; idTurmaSelecionada = null; encontroSelecionado = null }) {
             if (idTurmaSelecionada == null) {

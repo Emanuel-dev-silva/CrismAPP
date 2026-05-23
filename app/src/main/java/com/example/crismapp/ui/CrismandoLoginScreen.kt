@@ -5,10 +5,9 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable // Import necessário para o clique na imagem
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Login
@@ -25,7 +24,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,7 +46,7 @@ fun CrismandoLoginScreen(navController: NavController) {
     val screenHeight = configuration.screenHeightDp.dp
     val db = FirebaseFirestore.getInstance()
 
-    // Estado único para a matrícula
+    // Estado único para a matrícula (Ex: CX-1234)
     var codigoMatricula by remember { mutableStateOf("") }
 
     // Estados de feedback do Firebase
@@ -100,8 +98,8 @@ fun CrismandoLoginScreen(navController: NavController) {
                                 .fillMaxWidth()
                                 .height(180.dp)
                                 .align(Alignment.CenterHorizontally)
-                                // BYPASS AQUI: Clique na imagem pula a tela direto
                                 .clickable {
+                                    // Ajustado para a rota simples padrão aceita pelo seu NavGraph
                                     navController.navigate("crismandoScreen") {
                                         popUpTo("crismandoLoginScreen") { inclusive = true }
                                     }
@@ -188,15 +186,15 @@ fun CrismandoLoginScreen(navController: NavController) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Top
                     ) {
-                        // Campo Único: Código de Matrícula (Sombra suave padronizada 2.dp)
                         OutlinedTextField(
                             value = codigoMatricula,
-                            onValueChange = {
-                                codigoMatricula = it.uppercase().trim()
-                                mensagemErro = null // Limpa o erro ao voltar a digitar
+                            onValueChange = { input ->
+                                codigoMatricula = input.uppercase().replace(" ", "")
+                                mensagemErro = null
                             },
-                            label = { Text("Código de Matrícula", fontWeight = FontWeight.Medium) },
+                            label = { Text("Código de Matrícula (Ex: CX-1234)", fontWeight = FontWeight.Medium) },
                             leadingIcon = { Icon(Icons.Outlined.Key, contentDescription = null, tint = Crisma_Primary) },
+                            placeholder = { Text("CX-XXXX") },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp)),
@@ -214,7 +212,6 @@ fun CrismandoLoginScreen(navController: NavController) {
                             enabled = !carregando
                         )
 
-                        // Exibição de mensagens de erro abaixo do input
                         if (mensagemErro != null) {
                             Text(
                                 text = mensagemErro!!,
@@ -228,7 +225,6 @@ fun CrismandoLoginScreen(navController: NavController) {
 
                         Spacer(modifier = Modifier.height(20.dp))
 
-                        // Botões de Ação com ELEVAÇÃO Padronizada (2.dp)
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -257,26 +253,30 @@ fun CrismandoLoginScreen(navController: NavController) {
                                         return@Button
                                     }
 
+                                    if (!codigoMatricula.startsWith("CX-")) {
+                                        mensagemErro = "Formato inválido. O código deve iniciar com 'CX-'"
+                                        return@Button
+                                    }
+
                                     carregando = true
                                     mensagemErro = null
 
-                                    // Busca direta no banco usando a Matrícula como ID do documento
                                     db.collection("usuarios").document(codigoMatricula)
                                         .get()
                                         .addOnSuccessListener { document ->
                                             carregando = false
                                             if (document != null && document.exists()) {
-                                                // Matrícula válida encontrada com sucesso no Firestore!
+                                                // Ajustado para navegar de forma direta casando perfeitamente com a rota do NavGraph
                                                 navController.navigate("crismandoScreen") {
                                                     popUpTo("crismandoLoginScreen") { inclusive = true }
                                                 }
                                             } else {
-                                                mensagemErro = "Matrícula não encontrada."
+                                                mensagemErro = "Código inválido ou não cadastrado."
                                             }
                                         }
                                         .addOnFailureListener {
                                             carregando = false
-                                            mensagemErro = "Erro de conexão. Verifique sua rede."
+                                            mensagemErro = "Falha na conexão. Verifique sua internet."
                                         }
                                 },
                                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),

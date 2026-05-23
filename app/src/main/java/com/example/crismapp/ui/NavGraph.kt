@@ -18,7 +18,6 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
         composable("userSelection") {
             UserSelectionScreen(
                 onCrismandoSelected = {
-                    // Agora navega para a tela de login do crismando primeiro
                     navController.navigate("crismandoLoginScreen")
                 },
                 onCatequistaSelected = {
@@ -42,7 +41,7 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
             CatequistaOptionsScreen(navController = navController)
         }
 
-        // Tela do Crismando (Frequência, Avisos, Voltar) - Acessada após login
+        // Rota unificada e direta para a tela do crismando
         composable("crismandoScreen") {
             CrismandoScreen(navController = navController)
         }
