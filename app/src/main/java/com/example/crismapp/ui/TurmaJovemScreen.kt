@@ -1,6 +1,7 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
+import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -26,22 +28,24 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import com.example.crismapp.R
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
 private val Light_Gray_Darker = Color(0xFFE0E0E0)
 
-enum class StatusFrequencia { PRESENTE, FALTA, JUSTIFICADA, NENHUM }
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun TurmaJovemScreen(navController: NavController) {
     val view = LocalView.current
+    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
-    // Estados de Controle de Visibilidade
+    val db = FirebaseFirestore.getInstance()
+
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
     var showDadosPopup by remember { mutableStateOf(false) }
@@ -50,17 +54,15 @@ fun TurmaJovemScreen(navController: NavController) {
     var showFrequenciaPopup by remember { mutableStateOf(false) }
     var showTurmasPopup by remember { mutableStateOf(false) }
 
-    // Estados de Navegação Interna
-    var turmaSelecionada by remember { mutableStateOf<String?>(null) }
-    var encontroSelecionado by remember { mutableStateOf<Int?>(null) }
+    var idTurmaSelecionada by remember { mutableStateOf<String?>(null) }
+    var nomeTurmaSelecionada by remember { mutableStateOf<String?>(null) }
+    var encuentroSelecionado by remember { mutableStateOf<Int?>(null) }
     var crismandoSelecionado by remember { mutableStateOf<String?>(null) }
 
-    // Estados para Edição de Turmas
     var modoCriarTurma by remember { mutableStateOf(false) }
     var novoNomeTurma by remember { mutableStateOf("") }
     var novoNomeCrismando by remember { mutableStateOf("") }
 
-    // Dados Mockados reativos
     val dadosGerais = remember {
         mutableStateMapOf(
             "Matriz" to mutableStateMapOf("Fulaninho 1" to List(10) { false }, "Fulaninho 2" to List(10) { it < 2 }),
@@ -70,9 +72,10 @@ fun TurmaJovemScreen(navController: NavController) {
 
     val frequenciaPorEncontro = remember { mutableStateMapOf<String, StatusFrequencia>() }
     var novoAvisoTexto by remember { mutableStateOf("") }
-    val listaAvisosAtivos = remember { mutableStateListOf("Reunião com pais na Matriz", "Levar autorização para o retiro") }
+    var listaAvisosAtivos by remember { mutableStateOf(listOf<Aviso>()) }
+    var listaTurmasFirestore by remember { mutableStateOf(listOf<Turma>()) }
+    var listaCrismandosFirestore by remember { mutableStateOf(listOf<Crismando>()) }
 
-    // Estados de Animação
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
     var animarBotoesAcao by remember { mutableStateOf(false) }
@@ -86,19 +89,65 @@ fun TurmaJovemScreen(navController: NavController) {
         delay(300); animarBotoesAcao = true
     }
 
+    LaunchedEffect(Unit) {
+        db.collection("turmas")
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
+                    val nome = doc.getString("nome") ?: ""
+                    if (nome.isNotEmpty()) Turma(id = doc.id, nome = nome) else null
+                }.sortedBy { it.nome }
+            }
+    }
+
+    LaunchedEffect(idTurmaSelecionada) {
+        if (idTurmaSelecionada == null) {
+            listaCrismandosFirestore = emptyList()
+            return@LaunchedEffect
+        }
+        db.collection("usuarios")
+            .whereEqualTo("turmaId", idTurmaSelecionada)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
+                    val nome = doc.getString("nome") ?: ""
+                    val tId = doc.getString("turmaId") ?: ""
+                    if (nome.isNotEmpty()) Crismando(id = doc.id, nome = nome, turmaId = tId) else null
+                }.sortedBy { it.nome }
+            }
+    }
+
+    LaunchedEffect(Unit) {
+        db.collection("avisos")
+            .whereEqualTo("turmaId", "turma_jovem")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+                listaAvisosAtivos = snapshot.documents.mapNotNull { doc ->
+                    val txt = doc.getString("texto") ?: ""
+                    val tp = doc.getString("tipo") ?: "gerais"
+                    val tId = doc.getString("turmaId") ?: ""
+                    val data = doc.getLong("dataCriacao") ?: 0L
+                    if (txt.isNotEmpty()) Aviso(id = doc.id, texto = txt, tipo = tp, turmaId = tId, dataCriacao = data) else null
+                }.sortedByDescending { it.dataCriacao }
+            }
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // --- CABEÇALHO ---
             Box(modifier = Modifier.fillMaxWidth().weight(0.65f).background(Crisma_Primary).padding(horizontal = 16.dp, vertical = 24.dp)) {
-                Row(modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter).padding(top = 20.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
-                    UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
-                }
-                Column(modifier = Modifier.fillMaxSize().padding(top = 65.dp)) {
-                    AnimatedVisibility(visible = animarImagem, enter = fadeIn(tween(1200)) + scaleIn(initialScale = 0.9f)) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
+                        UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    if (animarImagem) {
                         Image(painter = painterResource(id = R.drawable.imagem_crisma), contentDescription = null, modifier = Modifier.fillMaxWidth().height(180.dp))
                     }
-                    AnimatedVisibility(visible = animarTextos, enter = fadeIn(tween(1200)) + slideInVertically { it / 3 }) {
+
+                    if (animarTextos) {
                         Column {
                             Text("\nGestão: Turma Jovem", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             HorizontalDivider(color = Crisma_Gold, thickness = 2.dp, modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp))
@@ -108,7 +157,6 @@ fun TurmaJovemScreen(navController: NavController) {
                 }
             }
 
-            // --- SELETOR DE TURMA ---
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Row(modifier = Modifier.fillMaxWidth().height(screenHeight * 0.08f).offset(y = -(screenHeight * 0.04f)).background(Color.White)) {
                     Button(onClick = { }, modifier = Modifier.weight(1f).fillMaxHeight(), colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker), shape = RoundedCornerShape(0.dp)) {
@@ -121,17 +169,17 @@ fun TurmaJovemScreen(navController: NavController) {
                 }
             }
 
-            // --- MENU ---
             Box(modifier = Modifier.fillMaxWidth().weight(0.35f).background(Color.White), contentAlignment = Alignment.TopCenter) {
-                androidx.compose.animation.AnimatedVisibility(visible = animarBotoesAcao, enter = fadeIn(tween(900)) + slideInVertically { 20 }) {
+                if (animarBotoesAcao) {
                     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SmallMenuCard(title = "Frequência", icon = Icons.Outlined.CheckCircle, modifier = Modifier.weight(1f)) {
-                                turmaSelecionada = null
+                                idTurmaSelecionada = null
                                 showFrequenciaPopup = true
                             }
                             SmallMenuCard(title = "Turmas", icon = Icons.Outlined.Groups, modifier = Modifier.weight(1f)) {
-                                turmaSelecionada = null
+                                idTurmaSelecionada = null
+                                nomeTurmaSelecionada = null
                                 modoCriarTurma = false
                                 showTurmasPopup = true
                             }
@@ -140,12 +188,12 @@ fun TurmaJovemScreen(navController: NavController) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SmallMenuCard(title = "Financeiro", icon = Icons.Outlined.Payments, modifier = Modifier.weight(1f)) {
-                                turmaSelecionada = null
+                                idTurmaSelecionada = null
                                 crismandoSelecionado = null
                                 showFinanceiroPopup = true
                             }
                             SmallMenuCard(title = "Dados", icon = Icons.Outlined.BarChart, modifier = Modifier.weight(1f)) {
-                                turmaSelecionada = null
+                                idTurmaSelecionada = null
                                 showDadosPopup = true
                             }
                             SmallMenuCard(title = "Voltar", icon = Icons.Outlined.ArrowBack, modifier = Modifier.weight(1f)) {
@@ -158,27 +206,44 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // --- POPUP TURMAS ---
     if (showTurmasPopup) {
         val titTurma = when {
             modoCriarTurma -> "Nova Turma"
-            turmaSelecionada != null -> "Editar: $turmaSelecionada"
+            idTurmaSelecionada != null -> "Editar: $nomeTurmaSelecionada"
             else -> "Gerenciar Turmas"
         }
         CustomPopup(title = titTurma, onDismiss = { showTurmasPopup = false }) {
             if (modoCriarTurma) {
                 item {
                     OutlinedTextField(value = novoNomeTurma, onValueChange = { novoNomeTurma = it }, label = { Text("Nome da Turma") }, modifier = Modifier.fillMaxWidth())
-                    Button(onClick = { if (novoNomeTurma.isNotBlank()) { dadosGerais[novoNomeTurma] = mutableStateMapOf(); novoNomeTurma = ""; modoCriarTurma = false } }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary)) { Text("Criar Turma", fontWeight = FontWeight.Bold) }
+                    Button(
+                        onClick = {
+                            if (novoNomeTurma.isNotBlank()) {
+                                val novaTurmaMap = hashMapOf("nome" to novoNomeTurma)
+                                db.collection("turmas").add(novaTurmaMap)
+                                novoNomeTurma = ""
+                                modoCriarTurma = false
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary)
+                    ) {
+                        Text("Criar Turma", fontWeight = FontWeight.Bold)
+                    }
                     TextButton(onClick = { modoCriarTurma = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar", color = Color.Gray) }
                 }
-            } else if (turmaSelecionada == null) {
-                items(dadosGerais.keys.toList()) { nomeTurma ->
+            } else if (idTurmaSelecionada == null) {
+                items(listaTurmasFirestore) { turma ->
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(nomeTurma, fontWeight = FontWeight.Bold, color = Crisma_Primary, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { turmaSelecionada = nomeTurma }) { Icon(Icons.Outlined.Edit, "Editar", tint = Color.Gray) }
-                            IconButton(onClick = { dadosGerais.remove(nomeTurma) }) { Icon(Icons.Outlined.Delete, "Excluir", tint = Color.Red.copy(0.7f)) }
+                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary, modifier = Modifier.weight(1f))
+                            IconButton(onClick = {
+                                idTurmaSelecionada = turma.id
+                                nomeTurmaSelecionada = turma.nome
+                            }) { Icon(Icons.Outlined.Edit, "Editar", tint = Color.Gray) }
+                            IconButton(onClick = {
+                                db.collection("turmas").document(turma.id).delete()
+                            }) { Icon(Icons.Outlined.Delete, "Excluir", tint = Color.Red.copy(0.7f)) }
                         }
                     }
                 }
@@ -189,17 +254,49 @@ fun TurmaJovemScreen(navController: NavController) {
                 }
             } else {
                 item {
-                    TextButton(onClick = { turmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) }
-                    OutlinedTextField(value = novoNomeCrismando, onValueChange = { novoNomeCrismando = it }, placeholder = { Text("Nome do Crismando...") }, modifier = Modifier.fillMaxWidth(), trailingIcon = {
-                        IconButton(onClick = { if (novoNomeCrismando.isNotBlank()) { dadosGerais[turmaSelecionada!!]!![novoNomeCrismando] = List(10) { false }; novoNomeCrismando = "" } }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
-                    })
-                    Spacer(Modifier.height(16.dp))
+                    TextButton(onClick = { idTurmaSelecionada = null; nomeTurmaSelecionada = null }) {
+                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
+                        Text(" Voltar", color = Crisma_Primary)
+                    }
+                    OutlinedTextField(
+                        value = novoNomeCrismando,
+                        onValueChange = { novoNomeCrismando = it },
+                        placeholder = { Text("Nome do Crismando...") },
+                        modifier = Modifier.fillMaxWidth(),
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                if (novoNomeCrismando.isNotBlank()) {
+                                    val numeroAleatorio = Random.nextInt(1000, 9999)
+                                    val codigoGerado = "CX-$numeroAleatorio"
+
+                                    val novoUsuarioMap = hashMapOf(
+                                        "nome" to novoNomeCrismando,
+                                        "turmaId" to idTurmaSelecionada!!,
+                                        "matricula" to codigoGerado
+                                    )
+
+                                    db.collection("usuarios").document(codigoGerado).set(novoUsuarioMap)
+                                        .addOnSuccessListener {
+                                            Toast.makeText(context, "Crismando adicionado! Código: $codigoGerado", Toast.LENGTH_LONG).show()
+                                        }
+
+                                    novoNomeCrismando = ""
+                                }
+                            }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
+                        }
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
-                items(dadosGerais[turmaSelecionada]!!.keys.toList()) { nome ->
+                items(listaCrismandosFirestore) { crismando ->
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp)) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(nome, modifier = Modifier.weight(1f), fontSize = 14.sp)
-                            IconButton(onClick = { dadosGerais[turmaSelecionada!!]!!.remove(nome) }) { Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f)) }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(crismando.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text("Cód: ${crismando.id}", fontSize = 11.sp, color = Color.Gray)
+                            }
+                            IconButton(onClick = { db.collection("usuarios").document(crismando.id).delete() }) {
+                                Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f))
+                            }
                         }
                     }
                 }
@@ -207,31 +304,30 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // --- POPUP FREQUÊNCIA ---
     if (showFrequenciaPopup) {
         val titFreq = when {
-            encontroSelecionado != null -> "${encontroSelecionado}º Encontro: $turmaSelecionada"
-            turmaSelecionada != null -> "Encontros: $turmaSelecionada"
+            encuentroSelecionado != null -> "${encuentroSelecionado}º Encontro: $idTurmaSelecionada"
+            idTurmaSelecionada != null -> "Encontros: $idTurmaSelecionada"
             else -> "Frequência - Turmas"
         }
         CustomPopup(title = titFreq, onDismiss = { showFrequenciaPopup = false }) {
-            if (turmaSelecionada == null) {
+            if (idTurmaSelecionada == null) {
                 items(dadosGerais.keys.toList()) { local ->
-                    Card(onClick = { turmaSelecionada = local }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
+                    Card(onClick = { idTurmaSelecionada = local }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(local, fontWeight = FontWeight.Bold, color = Crisma_Primary); Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary) }
                     }
                 }
-            } else if (encontroSelecionado == null) {
-                item { TextButton(onClick = { turmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
+            } else if (encuentroSelecionado == null) {
+                item { TextButton(onClick = { idTurmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
                 items((1..3).toList()) { num ->
-                    Card(onClick = { encontroSelecionado = num }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
+                    Card(onClick = { encuentroSelecionado = num }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("${num}º Encontro", color = Crisma_Primary); Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary) }
                     }
                 }
             } else {
-                item { TextButton(onClick = { encontroSelecionado = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items(dadosGerais[turmaSelecionada]!!.keys.toList()) { nome ->
-                    val chave = "Encontro_${encontroSelecionado}_$nome"
+                item { TextButton(onClick = { encuentroSelecionado = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
+                items(dadosGerais[idTurmaSelecionada]!!.keys.toList()) { nome ->
+                    val chave = "Encontro_${encuentroSelecionado}_$nome"
                     val status = frequenciaPorEncontro[chave] ?: StatusFrequencia.NENHUM
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
                         Column(modifier = Modifier.padding(12.dp)) {
@@ -249,25 +345,24 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // --- POPUP FINANCEIRO ---
     if (showFinanceiroPopup) {
-        CustomPopup(title = "Financeiro", onDismiss = { showFinanceiroPopup = false; turmaSelecionada = null; crismandoSelecionado = null }) {
-            if (turmaSelecionada == null) {
+        CustomPopup(title = "Financeiro", onDismiss = { showFinanceiroPopup = false; idTurmaSelecionada = null; crismandoSelecionado = null }) {
+            if (idTurmaSelecionada == null) {
                 items(dadosGerais.keys.toList()) { local ->
-                    Card(onClick = { turmaSelecionada = local }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
+                    Card(onClick = { idTurmaSelecionada = local }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(local, fontWeight = FontWeight.Bold, color = Crisma_Primary); Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary) }
                     }
                 }
             } else if (crismandoSelecionado == null) {
-                item { TextButton(onClick = { turmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items(dadosGerais[turmaSelecionada]!!.keys.toList()) { nome ->
+                item { TextButton(onClick = { idTurmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
+                items(dadosGerais[idTurmaSelecionada]!!.keys.toList()) { nome ->
                     Card(onClick = { crismandoSelecionado = nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(nome, color = Crisma_Primary); Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary) }
                     }
                 }
             } else {
                 item { TextButton(onClick = { crismandoSelecionado = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                val listaPagamento = dadosGerais[turmaSelecionada]!![crismandoSelecionado]!!
+                val listaPagamento = dadosGerais[idTurmaSelecionada]!![crismandoSelecionado]!!
                 items(10) { i ->
                     val pago = listaPagamento[i]
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = if(pago) Color(0xFFF1F8E9) else Color.White)) {
@@ -276,7 +371,7 @@ fun TurmaJovemScreen(navController: NavController) {
                             Button(onClick = {
                                 val nova = listaPagamento.toMutableList()
                                 nova[i] = !pago
-                                dadosGerais[turmaSelecionada!!]!![crismandoSelecionado!!] = nova
+                                dadosGerais[idTurmaSelecionada!!]!![crismandoSelecionado!!] = nova
                             }, colors = ButtonDefaults.buttonColors(containerColor = if(pago) Color(0xFF2E7D32) else Color(0xFFE0E0E0))) { Text(if(pago) "PAGO" else "PAGAR", fontSize = 10.sp) }
                         }
                     }
@@ -285,13 +380,11 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // --- POPUP DADOS (COM DETALHAMENTO DE TURMA) ---
     if (showDadosPopup) {
-        val tituloDados = if (turmaSelecionada == null) "Estatísticas Gerais" else "Faltas: $turmaSelecionada"
+        val tituloDados = if (idTurmaSelecionada == null) "Estatísticas Gerais" else "Faltas: $idTurmaSelecionada"
 
-        CustomPopup(title = tituloDados, onDismiss = { showDadosPopup = false; turmaSelecionada = null }) {
-            if (turmaSelecionada == null) {
-                // VISÃO GERAL: Médias por Turma
+        CustomPopup(title = tituloDados, onDismiss = { showDadosPopup = false; idTurmaSelecionada = null }) {
+            if (idTurmaSelecionada == null) {
                 item {
                     Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F8E9))) {
                         Column(modifier = Modifier.padding(16.dp)) {
@@ -304,7 +397,7 @@ fun TurmaJovemScreen(navController: NavController) {
                 }
                 items(dadosGerais.keys.toList()) { nomeTurma ->
                     Card(
-                        onClick = { turmaSelecionada = nomeTurma },
+                        onClick = { idTurmaSelecionada = nomeTurma },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, Color(0xFFEEEEEE))
@@ -319,16 +412,14 @@ fun TurmaJovemScreen(navController: NavController) {
                     }
                 }
             } else {
-                // VISÃO DETALHADA: Lista de Crismandos da Turma
                 item {
-                    TextButton(onClick = { turmaSelecionada = null }) {
+                    TextButton(onClick = { idTurmaSelecionada = null }) {
                         Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
                         Text(" Voltar para Visão Geral", color = Crisma_Primary)
                     }
                 }
-                val componentes = dadosGerais[turmaSelecionada]!!.keys.toList()
+                val componentes = dadosGerais[idTurmaSelecionada]!!.keys.toList()
                 items(componentes) { nomeCrismando ->
-                    // Mock de porcentagem de faltas (Pode ser calculada dinamicamente depois)
                     val percentualFalta = (0..30).random()
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -349,26 +440,67 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // --- POPUP AVISOS ---
     if (showAvisosPopup) {
         CustomPopup(title = "Avisos", onDismiss = { showAvisosPopup = false }) {
             item {
-                OutlinedTextField(value = novoAvisoTexto, onValueChange = { novoAvisoTexto = it }, placeholder = { Text("Novo aviso...") }, modifier = Modifier.fillMaxWidth())
-                Button(onClick = { if(novoAvisoTexto.isNotBlank()) { listaAvisosAtivos.add(0, novoAvisoTexto); novoAvisoTexto = "" } }, modifier = Modifier.fillMaxWidth().padding(top = 8.dp), colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary), shape = RoundedCornerShape(8.dp)) { Text("Publicar", fontWeight = FontWeight.Bold) }
+                OutlinedTextField(
+                    value = novoAvisoTexto,
+                    onValueChange = { novoAvisoTexto = it },
+                    placeholder = { Text("Novo aviso...") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Button(
+                    onClick = {
+                        if (novoAvisoTexto.isNotBlank()) {
+                            val novoAvisoMap = hashMapOf(
+                                "texto" to novoAvisoTexto,
+                                "tipo" to "gerais",
+                                "turmaId" to "turma_jovem",
+                                "dataCriacao" to System.currentTimeMillis()
+                            )
+                            db.collection("avisos").add(novoAvisoMap)
+                            novoAvisoTexto = ""
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text("Publicar", fontWeight = FontWeight.Bold)
+                }
                 HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
             }
             items(listaAvisosAtivos) { aviso ->
-                Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(aviso, modifier = Modifier.weight(1f), fontSize = 13.sp)
-                        IconButton(onClick = { listaAvisosAtivos.remove(aviso) }) { Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f)) }
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+                    border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = aviso.texto,
+                            modifier = Modifier.weight(1f),
+                            fontSize = 14.sp,
+                            color = Color.DarkGray
+                        )
+                        IconButton(
+                            onClick = {
+                                if (!aviso.id.isNullOrEmpty()) {
+                                    db.collection("avisos").document(aviso.id).delete()
+                                }
+                            }
+                        ) {
+                            Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(alpha = 0.7f))
+                        }
                     }
                 }
             }
         }
     }
 
-    // --- DIÁLOGOS PADRÃO ---
     if (showSobreNosDialog) AlertDialog(onDismissRequest = { showSobreNosDialog = false }, confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("OK", color = Crisma_Primary, fontWeight = FontWeight.Bold) } }, title = { Text("Sobre") }, text = { Text("CrismAPP - Gestão Catequética.") })
     if (showContatosDialog) AlertDialog(onDismissRequest = { showContatosDialog = false }, confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("OK", color = Crisma_Primary, fontWeight = FontWeight.Bold) } }, title = { Text("Contatos") }, text = { Text("Paróquia: (81) 98593-9076") })
 }

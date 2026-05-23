@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "499735477522",
+    "project_id": "crismapp-5b694",
+    "storage_bucket": "crismapp-5b694.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:499735477522:android:09e542d69e8d5c4a7287cb",
+        "android_client_info": {
+          "package_name": "com.example.crismapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCuiDMaTFsseRbwtJT1xWz2R_JDhwjw3rI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

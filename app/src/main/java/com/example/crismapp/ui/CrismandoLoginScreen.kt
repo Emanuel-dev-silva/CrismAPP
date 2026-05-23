@@ -5,6 +5,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable // Import necessário para o clique na imagem
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -25,13 +26,13 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import com.example.crismapp.R
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 
 private val Crisma_Primary = Color(0xFFFF0000)
@@ -45,10 +46,14 @@ fun CrismandoLoginScreen(navController: NavController) {
     val view = LocalView.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
+    val db = FirebaseFirestore.getInstance()
 
-    var username by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var passwordVisible by remember { mutableStateOf(false) }
+    // Estado único para a matrícula
+    var codigoMatricula by remember { mutableStateOf("") }
+
+    // Estados de feedback do Firebase
+    var carregando by remember { mutableStateOf(false) }
+    var mensagemErro by remember { mutableStateOf<String?>(null) }
 
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
@@ -91,7 +96,16 @@ fun CrismandoLoginScreen(navController: NavController) {
                         Image(
                             painter = painterResource(id = R.drawable.imagem_crisma),
                             contentDescription = "Logo",
-                            modifier = Modifier.fillMaxWidth().height(180.dp).align(Alignment.CenterHorizontally)
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .align(Alignment.CenterHorizontally)
+                                // BYPASS AQUI: Clique na imagem pula a tela direto
+                                .clickable {
+                                    navController.navigate("crismandoScreen") {
+                                        popUpTo("crismandoLoginScreen") { inclusive = true }
+                                    }
+                                }
                         )
                     }
 
@@ -174,42 +188,15 @@ fun CrismandoLoginScreen(navController: NavController) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Top
                     ) {
-                        // Campo Usuário (Sombra suave padronizada 2.dp)
+                        // Campo Único: Código de Matrícula (Sombra suave padronizada 2.dp)
                         OutlinedTextField(
-                            value = username,
-                            onValueChange = { username = it },
-                            label = { Text("Usuário", fontWeight = FontWeight.Medium) },
-                            leadingIcon = { Icon(Icons.Outlined.Person, contentDescription = null, tint = Crisma_Primary) },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp)),
-                            shape = RoundedCornerShape(4.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
-                                focusedBorderColor = Crisma_Primary,
-                                unfocusedBorderColor = Color(0xFFF0F0F0), // Borda cinza suave
-                                focusedLabelColor = Crisma_Primary,
-                                unfocusedLabelColor = Color.Gray,
-                                cursorColor = Crisma_Primary
-                            ),
-                            singleLine = true
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        // Campo Senha (Sombra suave padronizada 2.dp)
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text("Senha", fontWeight = FontWeight.Medium) },
-                            leadingIcon = { Icon(Icons.Outlined.Lock, contentDescription = null, tint = Crisma_Primary) },
-                            trailingIcon = {
-                                val icon = if (passwordVisible) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff
-                                IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                                    Icon(imageVector = icon, contentDescription = null, tint = Crisma_Primary)
-                                }
+                            value = codigoMatricula,
+                            onValueChange = {
+                                codigoMatricula = it.uppercase().trim()
+                                mensagemErro = null // Limpa o erro ao voltar a digitar
                             },
+                            label = { Text("Código de Matrícula", fontWeight = FontWeight.Medium) },
+                            leadingIcon = { Icon(Icons.Outlined.Key, contentDescription = null, tint = Crisma_Primary) },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .shadow(elevation = 2.dp, shape = RoundedCornerShape(4.dp)),
@@ -223,10 +210,21 @@ fun CrismandoLoginScreen(navController: NavController) {
                                 unfocusedLabelColor = Color.Gray,
                                 cursorColor = Crisma_Primary
                             ),
-                            visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                            singleLine = true
+                            singleLine = true,
+                            enabled = !carregando
                         )
+
+                        // Exibição de mensagens de erro abaixo do input
+                        if (mensagemErro != null) {
+                            Text(
+                                text = mensagemErro!!,
+                                color = Color.Red,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.padding(top = 8.dp).fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
@@ -244,7 +242,8 @@ fun CrismandoLoginScreen(navController: NavController) {
                                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
                                 modifier = Modifier.weight(1f).height(52.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
-                                shape = RoundedCornerShape(4.dp)
+                                shape = RoundedCornerShape(4.dp),
+                                enabled = !carregando
                             ) {
                                 Icon(Icons.AutoMirrored.Outlined.ArrowBack, null, tint = Crisma_Primary, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(8.dp))
@@ -253,18 +252,46 @@ fun CrismandoLoginScreen(navController: NavController) {
 
                             Button(
                                 onClick = {
-                                    navController.navigate("crismandoScreen") {
-                                        popUpTo("crismandoLoginScreen") { inclusive = true }
+                                    if (codigoMatricula.isBlank()) {
+                                        mensagemErro = "Insira o seu código de acesso."
+                                        return@Button
                                     }
+
+                                    carregando = true
+                                    mensagemErro = null
+
+                                    // Busca direta no banco usando a Matrícula como ID do documento
+                                    db.collection("usuarios").document(codigoMatricula)
+                                        .get()
+                                        .addOnSuccessListener { document ->
+                                            carregando = false
+                                            if (document != null && document.exists()) {
+                                                // Matrícula válida encontrada com sucesso no Firestore!
+                                                navController.navigate("crismandoScreen") {
+                                                    popUpTo("crismandoLoginScreen") { inclusive = true }
+                                                }
+                                            } else {
+                                                mensagemErro = "Matrícula não encontrada."
+                                            }
+                                        }
+                                        .addOnFailureListener {
+                                            carregando = false
+                                            mensagemErro = "Erro de conexão. Verifique sua rede."
+                                        }
                                 },
                                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp, pressedElevation = 1.dp),
                                 modifier = Modifier.weight(1f).height(52.dp),
                                 colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                                shape = RoundedCornerShape(4.dp)
+                                shape = RoundedCornerShape(4.dp),
+                                enabled = !carregando
                             ) {
-                                Text("Entrar", color = Color.White, fontWeight = FontWeight.Bold)
-                                Spacer(Modifier.width(8.dp))
-                                Icon(Icons.AutoMirrored.Outlined.Login, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                if (carregando) {
+                                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
+                                } else {
+                                    Text("Entrar", color = Color.White, fontWeight = FontWeight.Bold)
+                                    Spacer(Modifier.width(8.dp))
+                                    Icon(Icons.AutoMirrored.Outlined.Login, null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
                     }

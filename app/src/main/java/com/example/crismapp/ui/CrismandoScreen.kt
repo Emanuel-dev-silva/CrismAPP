@@ -35,6 +35,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import com.example.crismapp.R
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import java.util.Locale
 
@@ -50,7 +51,14 @@ enum class TipoDocumento { ENTREGUE, NAO_POSSUI, NAO_ENTREGUE }
 data class FrequenciaItem(val title: String, val status: TipoPresenca)
 data class CarneItem(val title: String, val isPaid: Boolean)
 data class DocumentoItem(val title: String, val status: TipoDocumento)
-data class AvisoItem(val text: String, val linkUrl: String? = null)
+
+// Ajustado para refletir o modelo do Firebase com a origem da turma
+data class AvisoItem(
+    val id: String,
+    val text: String,
+    val turmaId: String,
+    val linkUrl: String? = null
+)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -58,6 +66,7 @@ fun CrismandoScreen(navController: NavController) {
     val view = LocalView.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
+    val db = FirebaseFirestore.getInstance()
 
     var userName by remember { mutableStateOf("Emanuel") }
 
@@ -69,6 +78,9 @@ fun CrismandoScreen(navController: NavController) {
     var showAvisosPopup by remember { mutableStateOf(false) }
     var showCarnePopup by remember { mutableStateOf(false) }
     var showDocumentosPopup by remember { mutableStateOf(false) }
+
+    // Estado da lista de avisos vindos do banco
+    var listaAvisosFirebase by remember { mutableStateOf(listOf<AvisoItem>()) }
 
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
@@ -82,6 +94,24 @@ fun CrismandoScreen(navController: NavController) {
         delay(100); animarImagem = true
         delay(200); animarTextos = true
         delay(300); animarBotoesAcao = true
+    }
+
+    // LISTENER EM TEMPO REAL: Trazendo avisos de jovens E adultos para fins de comparação imediata
+    LaunchedEffect(Unit) {
+        db.collection("avisos")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null || snapshot == null) return@addSnapshotListener
+
+                listaAvisosFirebase = snapshot.documents.mapNotNull { doc ->
+                    val txt = doc.getString("texto") ?: ""
+                    val tId = doc.getString("turmaId") ?: "geral"
+                    val link = doc.getString("linkUrl")
+
+                    if (txt.isNotEmpty()) {
+                        AvisoItem(id = doc.id, text = txt, turmaId = tId, linkUrl = link)
+                    } else null
+                }
+            }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -335,38 +365,28 @@ fun CrismandoScreen(navController: NavController) {
     if (showAvisosPopup) {
         val uriHandler = LocalUriHandler.current
         CustomPopup(
-            title = "Últimos avisos:",
+            title = "Últimos avisos paroquiais:",
             onDismiss = { showAvisosPopup = false }
         ) {
-            val avisos = listOf(
-                AvisoItem("Preseça necessária na missa de sábado"),
-                AvisoItem("Não haverá encontro no sábado de aleluia."),
-                AvisoItem("Trazer a bíblia e caderno no próximo encontro."),
-                AvisoItem("Entre no grupo da WhatsApp da turma", "https://chat.whatsapp.com/ExemploCodigoDoGrupo")
-            )
-            items(avisos) { item ->
-                val isLink = item.linkUrl != null
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .then(if (isLink) Modifier.clickable { item.linkUrl?.let { uriHandler.openUri(it) } } else Modifier),
-                    colors = CardDefaults.cardColors(containerColor = if (isLink) Color(0xFFE8F5E9) else Color.White),
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, color = if (isLink) Color(0xFF81C784) else Color(0xFFEEEEEE))
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
-                        verticalAlignment = Alignment.CenterVertically
+            if (listaAvisosFirebase.isEmpty()) {
+                item {
+                    Box(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 24.dp),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            imageVector = if (isLink) Icons.Outlined.Link else Icons.Outlined.Label,
-                            contentDescription = null,
-                            tint = if (isLink) Color(0xFF2E7D32) else Crisma_Primary,
-                            modifier = Modifier.size(20.dp)
+                        Text(
+                            text = "Nenhum aviso publicado no momento.",
+                            fontSize = 14.sp,
+                            color = Color.Gray,
+                            fontWeight = FontWeight.Medium,
+                            fontFamily = customFont
                         )
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(text = item.text, color = if (isLink) Color(0xFF1B5E20) else Color.Black, fontSize = 14.sp, fontWeight = FontWeight.Bold, fontFamily = customFont)
                     }
+                }
+            } else {
+                // Renderização em tempo real pura dos dados criados na Coleção do Firestore
+                items(listaAvisosFirebase) { item ->
+                    AvisoCardComponent(item = item, uriHandler = uriHandler)
                 }
             }
         }
@@ -444,7 +464,60 @@ fun CrismandoScreen(navController: NavController) {
     }
 }
 
-// --- COMPONENTE POPUP CORRIGIDO ---
+// --- COMPONENTE ISOLADO DE CARD DE AVISO ---
+@Composable
+fun AvisoCardComponent(item: AvisoItem, uriHandler: androidx.compose.ui.platform.UriHandler) {
+    val isLink = item.linkUrl != null
+
+    val (tagTurma, tagColor) = when (item.turmaId) {
+        "turma_jovem" -> Pair("JOVEM", Color(0xFF0288D1))
+        "turma_adulta" -> Pair("ADULTO", Color(0xFFE65100))
+        else -> Pair("GERAL", Color.Gray)
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isLink) Modifier.clickable { item.linkUrl?.let { uriHandler.openUri(it) } } else Modifier),
+        colors = CardDefaults.cardColors(containerColor = if (isLink) Color(0xFFE8F5E9) else Color.White),
+        shape = RoundedCornerShape(8.dp),
+        border = BorderStroke(1.dp, color = if (isLink) Color(0xFF81C784) else Color(0xFFEEEEEE))
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(12.dp)) {
+            Box(
+                modifier = Modifier
+                    .background(tagColor, shape = RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            ) {
+                Text(text = tagTurma, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Black)
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (isLink) Icons.Outlined.Link else Icons.Outlined.Label,
+                    contentDescription = null,
+                    tint = if (isLink) Color(0xFF2E7D32) else Crisma_Primary,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = item.text,
+                    color = if (isLink) Color(0xFF1B5E20) else Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = customFont
+                )
+            }
+        }
+    }
+}
+
+// --- COMPONENTE POPUP ---
 @Composable
 fun CustomPopup(
     title: String,
@@ -454,7 +527,6 @@ fun CustomPopup(
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
-    // Capitaliza apenas a primeira letra para o título
     val formattedTitle = title.lowercase().replaceFirstChar { if (it.isLowerCase()) it.titlecase(Locale.getDefault()) else it.toString() }
 
     Dialog(onDismissRequest = onDismiss) {
@@ -476,7 +548,7 @@ fun CustomPopup(
                     contentAlignment = Alignment.CenterStart
                 ) {
                     Text(
-                        text = formattedTitle, // Título agora com capitalização correta
+                        text = formattedTitle,
                         color = Color.White,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -509,87 +581,3 @@ fun CustomPopup(
     }
 }
 
-// --- COMPONENTES AUXILIARES ---
-
-@Composable
-fun UserIconWithLabel(
-    icon: ImageVector,
-    label: String,
-    onClick: () -> Unit
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.clickable { onClick() }
-    ) {
-        Box(
-            modifier = Modifier.size(40.dp),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = label,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = label,
-            color = Color.White,
-            fontSize = 12.sp,
-            fontWeight = FontWeight.Medium,
-            fontFamily = customFont
-        )
-    }
-}
-
-@Composable
-fun SmallMenuCard(
-    title: String,
-    icon: ImageVector,
-    modifier: Modifier = Modifier,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = modifier
-            .height(100.dp)
-            .clickable { onClick() }
-            .shadow(
-                elevation = 2.dp,
-                shape = RoundedCornerShape(12.dp)
-            ),
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        border = BorderStroke(1.dp, color = Color(0xFFF0F0F0))
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier.size(40.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = icon,
-                    contentDescription = title,
-                    tint = Crisma_Primary,
-                    modifier = Modifier.size(28.dp)
-                )
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = customFont,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-}
