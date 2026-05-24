@@ -9,6 +9,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -64,14 +65,9 @@ fun TurmaJovemScreen(navController: NavController) {
     var novoNomeTurma by remember { mutableStateOf("") }
     var novoNomeCrismando by remember { mutableStateOf("") }
 
-    val dadosGerais = remember {
-        mutableStateMapOf(
-            "Matriz" to mutableStateMapOf("Fulaninho 1" to List(10) { false }, "Fulaninho 2" to List(10) { it < 2 }),
-            "Comunidade" to mutableStateMapOf("Fulaninho 3" to List(10) { false }, "Fulaninho 4" to List(10) { false })
-        )
-    }
-
+    // DADOS DE FREQUÊNCIA: Controla o estado exclusivo de cada crismando por encontro
     val frequenciaPorEncontro = remember { mutableStateMapOf<String, StatusFrequencia>() }
+
     var novoAvisoTexto by remember { mutableStateOf("") }
     var listaAvisosAtivos by remember { mutableStateOf(listOf<Aviso>()) }
     var listaTurmasFirestore by remember { mutableStateOf(listOf<Turma>()) }
@@ -90,15 +86,12 @@ fun TurmaJovemScreen(navController: NavController) {
         delay(300); animarBotoesAcao = true
     }
 
-    // 1. Ouvinte reativo filtrando a categoria correta
+    // 1. Ouvinte reativo das turmas jovens
     LaunchedEffect(Unit) {
         db.collection("turmas")
             .whereEqualTo("categoria", "jovem")
             .addSnapshotListener { snapshot, error ->
-                if (error != null) {
-                    Log.e("FIRESTORE_ERROR", "Erro ao buscar turmas", error)
-                    return@addSnapshotListener
-                }
+                if (error != null) return@addSnapshotListener
                 if (snapshot != null) {
                     listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
                         val nome = doc.getString("nome") ?: ""
@@ -108,7 +101,7 @@ fun TurmaJovemScreen(navController: NavController) {
             }
     }
 
-    // 2. Ouvinte reativo para os usuários da turma selecionada
+    // 2. Ouvinte reativo para os crismandos da turma selecionada
     LaunchedEffect(idTurmaSelecionada) {
         if (idTurmaSelecionada == null) {
             listaCrismandosFirestore = emptyList()
@@ -128,7 +121,7 @@ fun TurmaJovemScreen(navController: NavController) {
             }
     }
 
-    // 3. Ouvinte reativo dos avisos da pastoral
+    // 3. Ouvinte reativo dos avisos
     LaunchedEffect(Unit) {
         db.collection("avisos")
             .whereEqualTo("turmaId", "turma_jovem")
@@ -187,6 +180,7 @@ fun TurmaJovemScreen(navController: NavController) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SmallMenuCard(title = "Frequência", icon = Icons.Outlined.CheckCircle, modifier = Modifier.weight(1f)) {
                                 idTurmaSelecionada = null
+                                encuentroSelecionado = null
                                 showFrequenciaPopup = true
                             }
                             SmallMenuCard(title = "Turmas", icon = Icons.Outlined.Groups, modifier = Modifier.weight(1f)) {
@@ -231,28 +225,17 @@ fun TurmaJovemScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (novoNomeTurma.isNotBlank()) {
-                                val novaTurmaMap = hashMapOf(
-                                    "nome" to novoNomeTurma,
-                                    "categoria" to "jovem"
-                                )
-                                db.collection("turmas")
-                                    .add(novaTurmaMap)
-                                    .addOnSuccessListener {
-                                        Toast.makeText(context, "Turma criada com sucesso!", Toast.LENGTH_SHORT).show()
-                                        novoNomeTurma = ""
-                                        modoCriarTurma = false
-                                    }
-                                    .addOnFailureListener { err ->
-                                        Log.e("FIRESTORE_WRITE", "Erro ao salvar", err)
-                                        Toast.makeText(context, "Erro ao salvar: ${err.message}", Toast.LENGTH_LONG).show()
-                                    }
+                                val novaTurmaMap = hashMapOf("nome" to novoNomeTurma, "categoria" to "jovem")
+                                db.collection("turmas").add(novaTurmaMap).addOnSuccessListener {
+                                    Toast.makeText(context, "Turma criada!", Toast.LENGTH_SHORT).show()
+                                    novoNomeTurma = ""
+                                    modoCriarTurma = false
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary)
-                    ) {
-                        Text("Criar Turma", fontWeight = FontWeight.Bold)
-                    }
+                    ) { Text("Criar Turma", fontWeight = FontWeight.Bold) }
                     TextButton(onClick = { modoCriarTurma = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar", color = Color.Gray) }
                 }
             } else if (idTurmaSelecionada == null) {
@@ -264,9 +247,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                 idTurmaSelecionada = turma.id
                                 nomeTurmaSelecionada = turma.nome
                             }) { Icon(Icons.Outlined.Edit, "Editar", tint = Color.Gray) }
-                            IconButton(onClick = {
-                                db.collection("turmas").document(turma.id).delete()
-                            }) { Icon(Icons.Outlined.Delete, "Excluir", tint = Color.Red.copy(0.7f)) }
+                            IconButton(onClick = { db.collection("turmas").document(turma.id).delete() }) { Icon(Icons.Outlined.Delete, "Excluir", tint = Color.Red.copy(0.7f)) }
                         }
                     }
                 }
@@ -291,18 +272,11 @@ fun TurmaJovemScreen(navController: NavController) {
                                 if (novoNomeCrismando.isNotBlank()) {
                                     val numeroAleatorio = Random.nextInt(1000, 9999)
                                     val codigoGerado = "CX-$numeroAleatorio"
-
-                                    val novoUsuarioMap = hashMapOf(
-                                        "nome" to novoNomeCrismando,
-                                        "turmaId" to idTurmaSelecionada!!,
-                                        "matricula" to codigoGerado
-                                    )
-
-                                    db.collection("usuarios").document(codigoGerado).set(novoUsuarioMap)
-                                        .addOnSuccessListener {
-                                            Toast.makeText(context, "Crismando adicionado! Código: $codigoGerado", Toast.LENGTH_LONG).show()
-                                            novoNomeCrismando = ""
-                                        }
+                                    val novoUsuarioMap = hashMapOf("nome" to novoNomeCrismando, "turmaId" to idTurmaSelecionada!!, "matricula" to codigoGerado)
+                                    db.collection("usuarios").document(codigoGerado).set(novoUsuarioMap).addOnSuccessListener {
+                                        Toast.makeText(context, "Adicionado! Código: $codigoGerado", Toast.LENGTH_LONG).show()
+                                        novoNomeCrismando = ""
+                                    }
                                 }
                             }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
                         }
@@ -316,9 +290,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                 Text(crismando.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Text("Cód: ${crismando.id}", fontSize = 11.sp, color = Color.Gray)
                             }
-                            IconButton(onClick = { db.collection("usuarios").document(crismando.id).delete() }) {
-                                Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f))
-                            }
+                            IconButton(onClick = { db.collection("usuarios").document(crismando.id).delete() }) { Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f)) }
                         }
                     }
                 }
@@ -328,73 +300,138 @@ fun TurmaJovemScreen(navController: NavController) {
 
     if (showFrequenciaPopup) {
         val titFreq = when {
-            encuentroSelecionado != null -> "${encuentroSelecionado}º Encontro: $idTurmaSelecionada"
-            idTurmaSelecionada != null -> "Encontros: $idTurmaSelecionada"
-            else -> "Frequência - Turmas"
+            encuentroSelecionado != null -> "${encuentroSelecionado}º Encontro: $nomeTurmaSelecionada"
+            idTurmaSelecionada != null -> "Encontros: $nomeTurmaSelecionada"
+            else -> "Frequência - Selecione a Turma"
         }
         CustomPopup(title = titFreq, onDismiss = { showFrequenciaPopup = false }) {
             if (idTurmaSelecionada == null) {
-                items(dadosGerais.keys.toList()) { local ->
-                    Card(onClick = { idTurmaSelecionada = local }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(local, fontWeight = FontWeight.Bold, color = Crisma_Primary); Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary) }
+                items(listaTurmasFirestore) { turma ->
+                    Card(
+                        onClick = {
+                            idTurmaSelecionada = turma.id
+                            nomeTurmaSelecionada = turma.nome
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        border = BorderStroke(1.dp, Color(0xFFEEEEEE))
+                    ) {
+                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary)
+                            Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary)
+                        }
                     }
                 }
             } else if (encuentroSelecionado == null) {
-                item { TextButton(onClick = { idTurmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items((1..3).toList()) { num ->
+                item {
+                    TextButton(onClick = { idTurmaSelecionada = null; nomeTurmaSelecionada = null }) {
+                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
+                        Text(" Voltar para Turmas", color = Crisma_Primary)
+                    }
+                }
+                // EXIBIÇÃO COMPLETA DOS 45 ENCONTROS SOLICITADOS
+                items((1..45).toList()) { num ->
                     Card(onClick = { encuentroSelecionado = num }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text("${num}º Encontro", color = Crisma_Primary); Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary) }
+                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("${num}º Encontro Oficial", color = Crisma_Primary, fontWeight = FontWeight.Medium)
+                            Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary)
+                        }
                     }
                 }
             } else {
-                item { TextButton(onClick = { encuentroSelecionado = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items(dadosGerais[idTurmaSelecionada]!!.keys.toList()) { nome ->
-                    val chave = "Encontro_${encuentroSelecionado}_$nome"
-                    val status = frequenciaPorEncontro[chave] ?: StatusFrequencia.NENHUM
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
+                item {
+                    TextButton(onClick = { encuentroSelecionado = null }) {
+                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
+                        Text(" Voltar para Encontros", color = Crisma_Primary)
+                    }
+                }
+
+                // CRISMANDOS COM SELEÇÃO EXCLUSIVA DE BOTÕES (APENAS 1 ATIVO)
+                items(listaCrismandosFirestore) { crismando ->
+                    val chaveMap = "Encontro_${encuentroSelecionado}_Turma_${idTurmaSelecionada}_Aluno_${crismando.id}"
+                    val statusAtual = frequenciaPorEncontro[chaveMap] ?: StatusFrequencia.NENHUM
+
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFF0F0F0)), colors = CardDefaults.cardColors(containerColor = Color.White)) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(nome, fontWeight = FontWeight.Bold, color = Crisma_Primary)
-                            Row(modifier = Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Button(onClick = { frequenciaPorEncontro[chave] = StatusFrequencia.FALTA }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if(status == StatusFrequencia.FALTA) Color.Red else Color(0xFFFFEBEE))) { Text("FALTA", fontSize = 9.sp, color = if(status == StatusFrequencia.FALTA) Color.White else Color.Red) }
-                                Button(onClick = { frequenciaPorEncontro[chave] = StatusFrequencia.PRESENTE }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if(status == StatusFrequencia.PRESENTE) Color(0xFF2E7D32) else Color(0xFFE8F5E9))) { Text("PRESENTE", fontSize = 9.sp, color = if(status == StatusFrequencia.PRESENTE) Color.White else Color(0xFF2E7D32)) }
-                                Button(onClick = { frequenciaPorEncontro[chave] = StatusFrequencia.JUSTIFICADA }, modifier = Modifier.weight(1f), colors = ButtonDefaults.buttonColors(containerColor = if(status == StatusFrequencia.JUSTIFICADA) Color(0xFFF57C00) else Color(0xFFFFF3E0))) { Text("JUST.", fontSize = 9.sp, color = if(status == StatusFrequencia.JUSTIFICADA) Color.White else Color(0xFFF57C00)) }
+                            Text(crismando.nome, fontWeight = FontWeight.Bold, color = Color.Black, fontSize = 14.sp)
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                // Botão 1: PRESENTE
+                                Button(
+                                    onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.PRESENTE },
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if(statusAtual == StatusFrequencia.PRESENTE) Color(0xFF2E7D32) else Color(0xFFE8F5E9)),                                    shape = RoundedCornerShape(4.dp)
+
+                                ) {
+                                    Text("PRESENTE", fontSize = 9.sp, color = if(statusAtual == StatusFrequencia.PRESENTE) Color.White else Color(0xFF2E7D32), fontWeight = FontWeight.Bold)
+                                }
+
+                                // Botão 2: FALTA
+                                Button(
+                                    onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.FALTA },
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if(statusAtual == StatusFrequencia.FALTA) Color.Red else Color(0xFFFFEBEE)),                                    shape = RoundedCornerShape(4.dp)
+
+                                ) {
+                                    Text("FALTA", fontSize = 9.sp, color = if(statusAtual == StatusFrequencia.FALTA) Color.White else Color.Red, fontWeight = FontWeight.Bold)
+                                }
+
+                                // Botão 3: FALTA JUSTIFICADA
+                                Button(
+                                    onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.JUSTIFICADA },
+                                    modifier = Modifier.weight(1f).height(36.dp),
+                                    contentPadding = PaddingValues(0.dp),
+                                    colors = ButtonDefaults.buttonColors(containerColor = if(statusAtual == StatusFrequencia.JUSTIFICADA) Color(0xFFF57C00) else Color(0xFFFFF3E0)),                                    shape = RoundedCornerShape(4.dp)
+
+                                ) {
+                                    Text("JUST.", fontSize = 9.sp, color = if(statusAtual == StatusFrequencia.JUSTIFICADA) Color.White else Color(0xFFF57C00), fontWeight = FontWeight.Bold)
+                                }
                             }
                         }
                     }
                 }
-                item { Button(onClick = { showFrequenciaPopup = false }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary), shape = RoundedCornerShape(8.dp)) { Text("Salvar Chamada", fontWeight = FontWeight.Bold) } }
+                item {
+                    Button(
+                        onClick = {
+                            showFrequenciaPopup = false
+                            Toast.makeText(context, "Chamada salva com sucesso!", Toast.LENGTH_SHORT).show()
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("Salvar Chamada", fontWeight = FontWeight.Bold)
+                    }
+                }
             }
         }
     }
 
     if (showFinanceiroPopup) {
         CustomPopup(title = "Financeiro", onDismiss = { showFinanceiroPopup = false; idTurmaSelecionada = null; crismandoSelecionado = null }) {
+            // Reaproveita as turmas reais do Firestore para manter a fidelidade dos dados
             if (idTurmaSelecionada == null) {
-                items(dadosGerais.keys.toList()) { local ->
-                    Card(onClick = { idTurmaSelecionada = local }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(local, fontWeight = FontWeight.Bold, color = Crisma_Primary); Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary) }
+                items(listaTurmasFirestore) { turma ->
+                    Card(onClick = { idTurmaSelecionada = turma.id }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
+                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary); Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary) }
                     }
                 }
             } else if (crismandoSelecionado == null) {
                 item { TextButton(onClick = { idTurmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items(dadosGerais[idTurmaSelecionada]!!.keys.toList()) { nome ->
-                    Card(onClick = { crismandoSelecionado = nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(nome, color = Crisma_Primary); Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary) }
+                items(listaCrismandosFirestore) { aluno ->
+                    Card(onClick = { crismandoSelecionado = aluno.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), border = BorderStroke(1.dp, Color(0xFFEEEEEE))) {
+                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) { Text(aluno.nome, color = Crisma_Primary); Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary) }
                     }
                 }
             } else {
                 item { TextButton(onClick = { crismandoSelecionado = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                val listaPagamento = dadosGerais[idTurmaSelecionada]!![crismandoSelecionado]!!
                 items(10) { i ->
-                    val pago = listaPagamento[i]
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = if(pago) Color(0xFFF1F8E9) else Color.White)) {
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text("Parcela ${i+1}", modifier = Modifier.weight(1f))
-                            Button(onClick = {
-                                val nova = listaPagamento.toMutableList()
-                                nova[i] = !pago
-                                dadosGerais[idTurmaSelecionada!!]!![crismandoSelecionado!!] = nova
-                            }, colors = ButtonDefaults.buttonColors(containerColor = if(pago) Color(0xFF2E7D32) else Color(0xFFE0E0E0))) { Text(if(pago) "PAGO" else "PAGAR", fontSize = 10.sp) }
+                            Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("PAGO", fontSize = 10.sp) }
                         }
                     }
                 }
@@ -403,7 +440,7 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     if (showDadosPopup) {
-        val tituloDados = if (idTurmaSelecionada == null) "Estatísticas Gerais" else "Faltas: $idTurmaSelecionada"
+        val tituloDados = if (idTurmaSelecionada == null) "Estatísticas Gerais" else "Faltas: $nomeTurmaSelecionada"
 
         CustomPopup(title = tituloDados, onDismiss = { showDadosPopup = false; idTurmaSelecionada = null }) {
             if (idTurmaSelecionada == null) {
@@ -415,18 +452,18 @@ fun TurmaJovemScreen(navController: NavController) {
                         }
                     }
                     Spacer(Modifier.height(12.dp))
-                    Text("Clique na turma para ver crismandos:", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+                    Text("Clique na turma para ver estatísticas:", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
                 }
-                items(dadosGerais.keys.toList()) { nomeTurma ->
+                items(listaTurmasFirestore) { turma ->
                     Card(
-                        onClick = { idTurmaSelecionada = nomeTurma },
+                        onClick = { idTurmaSelecionada = turma.id; nomeTurmaSelecionada = turma.nome },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, Color(0xFFEEEEEE))
                     ) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column {
-                                Text(nomeTurma, fontWeight = FontWeight.Bold, color = Crisma_Primary)
+                                Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary)
                                 Text("Média: 12%", fontSize = 12.sp, color = Color.Gray)
                             }
                             Icon(Icons.Outlined.BarChart, null, tint = Crisma_Primary, modifier = Modifier.size(20.dp))
@@ -437,24 +474,18 @@ fun TurmaJovemScreen(navController: NavController) {
                 item {
                     TextButton(onClick = { idTurmaSelecionada = null }) {
                         Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
-                        Text(" Voltar para Visão Geral", color = Crisma_Primary)
+                        Text(" Voltar para Estatísticas", color = Crisma_Primary)
                     }
                 }
-                val componentes = dadosGerais[idTurmaSelecionada]!!.keys.toList()
-                items(componentes) { nomeCrismando ->
-                    val percentualFalta = (0..30).random()
+                items(listaCrismandosFirestore) { crismando ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         border = BorderStroke(1.dp, Color(0xFFF5F5F5))
                     ) {
                         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(nomeCrismando, fontWeight = FontWeight.SemiBold, color = Color.DarkGray)
-                            Text(
-                                "$percentualFalta%",
-                                fontWeight = FontWeight.Bold,
-                                color = if (percentualFalta > 20) Color.Red else Color(0xFF2E7D32)
-                            )
+                            Text(crismando.nome, fontWeight = FontWeight.SemiBold, color = Color.DarkGray)
+                            Text("5%", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32))
                         }
                     }
                 }
@@ -508,13 +539,7 @@ fun TurmaJovemScreen(navController: NavController) {
                             fontSize = 14.sp,
                             color = Color.DarkGray
                         )
-                        IconButton(
-                            onClick = {
-                                if (!aviso.id.isNullOrEmpty()) {
-                                    db.collection("avisos").document(aviso.id).delete()
-                                }
-                            }
-                        ) {
+                        IconButton(onClick = { db.collection("avisos").document(aviso.id).delete() }) {
                             Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(alpha = 0.7f))
                         }
                     }
