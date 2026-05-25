@@ -8,8 +8,8 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
@@ -43,8 +43,18 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
-// Declarada localmente com nome exclusivo para evitar conflitos com a classe de adultos no mesmo pacote
+// Classes de dados do escopo da tela
 data class EncontroCatequeseJovem(val id: String, val numero: Int, val dataManual: String, val turmaId: String)
+
+data class ParcelaFinanceira(
+    val id: String = "",
+    val numeroParcela: Int = 0,
+    val alunoId: String = "",
+    val valor: Double = 0.0,
+    val statusPago: Boolean = false,
+    val recebidoPor: String = "",
+    val dataPagamento: Long = 0L
+)
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
@@ -112,8 +122,9 @@ fun TurmaJovemScreen(navController: NavController) {
 
     var idTurmaSelecionada by remember { mutableStateOf<String?>(null) }
     var nomeTurmaSelecionada by remember { mutableStateOf<String?>(null) }
-    var encuentroSelecionado by remember { mutableStateOf<Int?>(null) }
+    var encontroSelecionado by remember { mutableStateOf<Int?>(null) }
     var crismandoSelecionado by remember { mutableStateOf<String?>(null) }
+    var nomeCrismandoSelecionadoFixo by remember { mutableStateOf("") }
 
     var modoCriarTurma by remember { mutableStateOf(false) }
     var novoNomeTurma by remember { mutableStateOf("") }
@@ -134,12 +145,22 @@ fun TurmaJovemScreen(navController: NavController) {
     var nomeTurmaParaExcluir by remember { mutableStateOf("") }
     var liberarBotoesConfirmacaoExcluirTurma by remember { mutableStateOf(false) }
 
-    // 💡 Estados para controle do Alerta de Exclusão de Aviso com Delay
+    // Estados para controle do Alerta de Exclusão de Aviso com Delay
     var idAvisoParaExcluir by remember { mutableStateOf<String?>(null) }
     var textoAvisoParaExcluir by remember { mutableStateOf("") }
     var liberarBotoesConfirmacaoExcluirAviso by remember { mutableStateOf(false) }
 
-    var modoPreenchimentoAutomatico by remember { mutableStateOf(false) }
+    // Estados para o Gerenciamento de Fluxo Financeiro Seguro
+    var parcelaSelecionadaFinanceira by remember { mutableStateOf<Int?>(null) }
+    var catequistaResponsavelInput by remember { mutableStateOf("") }
+    var showAlertaFinanceiroEtapa1 by remember { mutableStateOf(false) }
+    var showAlertaFinanceiroEtapa2 by remember { mutableStateOf(false) }
+    var liberarBotaoFinanceiroEtapa1 by remember { mutableStateOf(false) }
+    var liberarBotaoFinanceiroEtapa2 by remember { mutableStateOf(false) }
+    var showPagamentoInfoDialog by remember { mutableStateOf(false) }
+    var nomeCatequistaPagamento by remember { mutableStateOf("") }
+
+    var modoEdicaoFrequencia by remember { mutableStateOf(false) }
     var exibirPorcentagemFalta by remember { mutableStateOf(false) }
 
     val frequenciaPorEncontro = remember { mutableStateMapOf<String, StatusFrequencia>() }
@@ -148,6 +169,8 @@ fun TurmaJovemScreen(navController: NavController) {
     var listaAvisosAtivos by remember { mutableStateOf(listOf<Aviso>()) }
     var listaTurmasFirestore by remember { mutableStateOf(listOf<Turma>()) }
     var listaCrismandosFirestore by remember { mutableStateOf(listOf<Crismando>()) }
+
+    var listaParcelasFinanceiras by remember { mutableStateOf<List<ParcelaFinanceira>>(emptyList()) }
 
     var listaEncontrosFirestore by remember { mutableStateOf(listOf<EncontroCatequeseJovem>()) }
     var todasFrequenciasGeraisByTurma by remember { mutableStateOf(listOf<Map<String, Any>>()) }
@@ -183,12 +206,27 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // 💡 Temporizador controlado para a exclusão de avisos
     LaunchedEffect(idAvisoParaExcluir) {
         if (idAvisoParaExcluir != null) {
             liberarBotoesConfirmacaoExcluirAviso = false
             delay(2000)
             liberarBotoesConfirmacaoExcluirAviso = true
+        }
+    }
+
+    LaunchedEffect(showAlertaFinanceiroEtapa1) {
+        if (showAlertaFinanceiroEtapa1) {
+            liberarBotaoFinanceiroEtapa1 = false
+            delay(2000)
+            liberarBotaoFinanceiroEtapa1 = true
+        }
+    }
+
+    LaunchedEffect(showAlertaFinanceiroEtapa2) {
+        if (showAlertaFinanceiroEtapa2) {
+            liberarBotaoFinanceiroEtapa2 = false
+            delay(2000)
+            liberarBotaoFinanceiroEtapa2 = true
         }
     }
 
@@ -208,23 +246,27 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     // 2. Ouvinte reativo para os crismandos da turma selecionada
-    LaunchedEffect(idTurmaSelecionada) {
+    DisposableEffect(idTurmaSelecionada) {
         if (idTurmaSelecionada == null) {
             listaCrismandosFirestore = emptyList()
-            return@LaunchedEffect
-        }
-        db.collection("usuarios")
-            .whereEqualTo("turmaId", idTurmaSelecionada)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
-                if (snapshot != null) {
+            onDispose { }
+        } else {
+            val listener = db.collection("usuarios")
+                .whereEqualTo("turmaId", idTurmaSelecionada)
+                .addSnapshotListener { snapshot, error ->
+                    if (error != null || snapshot == null) {
+                        return@addSnapshotListener
+                    }
                     listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
                         val nome = doc.getString("nome") ?: ""
                         val tId = doc.getString("turmaId") ?: ""
-                        if (nome.isNotEmpty()) Crismando(id = doc.id, nome = nome, turmaId = tId) else null
+                        if (nome.isNotEmpty()) {
+                            Crismando(id = doc.id, nome = nome, turmaId = tId)
+                        } else null
                     }.sortedBy { it.nome }
                 }
-            }
+            onDispose { listener.remove() }
+        }
     }
 
     // 2.B Ouvinte reativo dos encontros da turma selecionada
@@ -261,6 +303,30 @@ fun TurmaJovemScreen(navController: NavController) {
             }
     }
 
+    // Ouvinte reativo financeiro
+    LaunchedEffect(crismandoSelecionado) {
+        if (crismandoSelecionado == null) {
+            listaParcelasFinanceiras = emptyList()
+            return@LaunchedEffect
+        }
+
+        db.collection("financeiro")
+            .whereEqualTo("alunoId", crismandoSelecionado)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null) return@addSnapshotListener
+                listaParcelasFinanceiras = snapshot.documents.mapNotNull { doc ->
+                    ParcelaFinanceira(
+                        id = doc.id,
+                        numeroParcela = doc.getLong("numeroParcela")?.toInt() ?: doc.getLong("parcela")?.toInt() ?: 0,
+                        alunoId = doc.getString("alunoId") ?: "",
+                        statusPago = (doc.getString("status") == "PAGO") || (doc.getBoolean("statusPago") ?: false),
+                        recebidoPor = doc.getString("recebidoPor") ?: doc.getString("catequista") ?: "",
+                        dataPagamento = doc.getLong("dataPagamento") ?: doc.getLong("dataLancamento") ?: 0L
+                    )
+                }
+            }
+    }
+
     // 3. Ouvinte reativo dos avisos
     LaunchedEffect(Unit) {
         db.collection("avisos")
@@ -278,12 +344,12 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     // 4. Ouvinte reativo global para a frequência em nuvem
-    LaunchedEffect(idTurmaSelecionada, encuentroSelecionado) {
-        if (idTurmaSelecionada == null || encuentroSelecionado == null) return@LaunchedEffect
+    LaunchedEffect(idTurmaSelecionada, encontroSelecionado) {
+        if (idTurmaSelecionada == null || encontroSelecionado == null) return@LaunchedEffect
 
         db.collection("frequencias")
             .whereEqualTo("turmaId", idTurmaSelecionada)
-            .whereEqualTo("encontro", encuentroSelecionado)
+            .whereEqualTo("encontro", encontroSelecionado)
             .addSnapshotListener { snapshot, error ->
                 if (error != null || snapshot == null) return@addSnapshotListener
 
@@ -292,20 +358,20 @@ fun TurmaJovemScreen(navController: NavController) {
                     val statusString = doc.getString("status") ?: "NENHUM"
 
                     if (alunoId.isNotEmpty()) {
-                        val chaveMap = "Jov_${idTurmaSelecionada}_${encuentroSelecionado}_${alunoId}"
-                        frequenciaPorEncontro[chaveMap] = StatusFrequencia.valueOf(statusString)
+                        val apiKeyMap = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${alunoId}"
+                        frequenciaPorEncontro[apiKeyMap] = StatusFrequencia.valueOf(statusString)
                     }
                 }
             }
     }
 
     // Lógica do Switch de preenchimento automático
-    LaunchedEffect(modoPreenchimentoAutomatico, idTurmaSelecionada, encuentroSelecionado) {
-        if (idTurmaSelecionada == null || encuentroSelecionado == null) return@LaunchedEffect
+    LaunchedEffect(modoEdicaoFrequencia, idTurmaSelecionada, encontroSelecionado) {
+        if (idTurmaSelecionada == null || encontroSelecionado == null) return@LaunchedEffect
 
         listaCrismandosFirestore.forEach { crismando ->
-            val chave = "Jov_${idTurmaSelecionada}_${encuentroSelecionado}_${crismando.id}"
-            if (modoPreenchimentoAutomatico) {
+            val chave = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
+            if (modoEdicaoFrequencia) {
                 if (frequenciaPorEncontro[chave] == null || frequenciaPorEncontro[chave] == StatusFrequencia.NENHUM) {
                     frequenciaPorEncontro[chave] = StatusFrequencia.PRESENTE
                 }
@@ -360,8 +426,8 @@ fun TurmaJovemScreen(navController: NavController) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             SmallMenuCardJovem(title = "Frequência", icon = Icons.Outlined.CheckCircle, modifier = Modifier.weight(1f)) {
                                 idTurmaSelecionada = null
-                                encuentroSelecionado = null
-                                modoPreenchimentoAutomatico = false
+                                encontroSelecionado = null
+                                modoEdicaoFrequencia = false
                                 showFrequenciaPopup = true
                             }
                             SmallMenuCardJovem(title = "Turmas", icon = Icons.Outlined.Groups, modifier = Modifier.weight(1f)) {
@@ -377,6 +443,8 @@ fun TurmaJovemScreen(navController: NavController) {
                             SmallMenuCardJovem(title = "Financeiro", icon = Icons.Outlined.Payments, modifier = Modifier.weight(1f)) {
                                 idTurmaSelecionada = null
                                 crismandoSelecionado = null
+                                parcelaSelecionadaFinanceira = null
+                                catequistaResponsavelInput = ""
                                 showFinanceiroPopup = true
                             }
                             SmallMenuCardJovem(title = "Dados", icon = Icons.Outlined.BarChart, modifier = Modifier.weight(1f)) {
@@ -417,7 +485,7 @@ fun TurmaJovemScreen(navController: NavController) {
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                        shape = RoundedCornerShape(4.dp) // 💡 Menos arredondado (estilo M3 sóbrio)
+                        shape = RoundedCornerShape(4.dp)
                     ) { Text("Criar Turma", fontWeight = FontWeight.Bold) }
                     TextButton(onClick = { modoCriarTurma = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar", color = Color.Gray) }
                 }
@@ -425,7 +493,7 @@ fun TurmaJovemScreen(navController: NavController) {
                 items(listaTurmasFirestore) { turma ->
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary, modifier = Modifier.weight(1f))
+                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
                             IconButton(onClick = {
                                 idTurmaSelecionada = turma.id
                                 nomeTurmaSelecionada = turma.nome
@@ -489,11 +557,11 @@ fun TurmaJovemScreen(navController: NavController) {
 
     if (showFrequenciaPopup) {
         val titFreq = when {
-            encuentroSelecionado != null -> "Encontro $encuentroSelecionado - ${listaEncontrosFirestore.find { it.numero == encuentroSelecionado }?.dataManual ?: ""}"
+            encontroSelecionado != null -> "Encontro $encontroSelecionado - ${listaEncontrosFirestore.firstOrNull { it.numero == encontroSelecionado }?.dataManual ?: ""}"
             idTurmaSelecionada != null -> "Encontros: $nomeTurmaSelecionada"
             else -> "Frequência - Selecione a Turma"
         }
-        CustomPopupJovem(title = titFreq, onDismiss = { showFrequenciaPopup = false; idTurmaSelecionada = null; encuentroSelecionado = null; idEncontroEmEdicao = null; modoPreenchimentoAutomatico = false }) {
+        CustomPopupJovem(title = titFreq, onDismiss = { showFrequenciaPopup = false; idTurmaSelecionada = null; encontroSelecionado = null; idEncontroEmEdicao = null; modoEdicaoFrequencia = false }) {
             if (idTurmaSelecionada == null) {
                 items(listaTurmasFirestore) { turma ->
                     Card(
@@ -502,17 +570,17 @@ fun TurmaJovemScreen(navController: NavController) {
                             nomeTurmaSelecionada = turma.nome
                         },
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), // 💡 Fundo Cinza Unificado
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
                         border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-                        shape = RoundedCornerShape(4.dp) // 💡 Menos arredondado
+                        shape = RoundedCornerShape(4.dp)
                     ) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary)
-                            Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary)
-                        }
+                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary)}
                     }
                 }
-            } else if (encuentroSelecionado == null) {
+            } else if (encontroSelecionado == null) {
                 item {
                     TextButton(onClick = { idTurmaSelecionada = null; nomeTurmaSelecionada = null }) {
                         Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
@@ -523,13 +591,13 @@ fun TurmaJovemScreen(navController: NavController) {
                 items(listaEncontrosFirestore) { encontro ->
                     Card(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), // 💡 Fundo Cinza Unificado
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
                         border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
                         shape = RoundedCornerShape(4.dp)
                     ) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f).clickable { encuentroSelecionado = encontro.numero }) {
-                                Text("Encontro ${encontro.numero} - ${encontro.dataManual}", color = Crisma_Primary, fontWeight = FontWeight.Medium)
+                            Column(modifier = Modifier.weight(1f).clickable { encontroSelecionado = encontro.numero }) {
+                                Text("Encontro ${encontro.numero} - ${encontro.dataManual}", color = Color.Black, fontWeight = FontWeight.Medium)
                             }
 
                             Row {
@@ -628,9 +696,13 @@ fun TurmaJovemScreen(navController: NavController) {
                                     if (anoInserido < 2026) {
                                         Toast.makeText(context, "O ano não pode ser menor que 2026!", Toast.LENGTH_SHORT).show()
                                     } else {
-                                        val proximoNumero = listaEncontrosFirestore.size + 1
+                                        val proximoNumero =
+                                            (listaEncontrosFirestore.maxOfOrNull { it.numero } ?: 0) + 1
+
                                         val dataComBarras = StringBuilder(novaDataEncontroInput)
-                                            .insert(2, "/").insert(5, "/").toString()
+                                            .insert(2, "/")
+                                            .insert(5, "/")
+                                            .toString()
 
                                         val novoEncontroMap = hashMapOf(
                                             "numero" to proximoNumero,
@@ -660,7 +732,7 @@ fun TurmaJovemScreen(navController: NavController) {
             } else {
                 item {
                     Column(modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { encuentroSelecionado = null; modoPreenchimentoAutomatico = false }) {
+                        TextButton(onClick = { encontroSelecionado = null; modoEdicaoFrequencia = false }) {
                             Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
                             Text(" Voltar para Encontros", color = Crisma_Primary)
                         }
@@ -679,8 +751,8 @@ fun TurmaJovemScreen(navController: NavController) {
                                 Text("Preencher", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
                             }
                             Switch(
-                                checked = modoPreenchimentoAutomatico,
-                                onCheckedChange = { modoPreenchimentoAutomatico = it },
+                                checked = modoEdicaoFrequencia,
+                                onCheckedChange = { modoEdicaoFrequencia = it },
                                 colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF2E7D32))
                             )
                         }
@@ -689,20 +761,20 @@ fun TurmaJovemScreen(navController: NavController) {
                 }
 
                 items(listaCrismandosFirestore) { crismando ->
-                    val chaveMap = "Jov_${idTurmaSelecionada}_${encuentroSelecionado}_${crismando.id}"
+                    val chaveMap = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
                     val status = frequenciaPorEncontro[chaveMap] ?: StatusFrequencia.NENHUM
 
-                    val factorOpacity = if (modoPreenchimentoAutomatico) 1.0f else 0.4f
+                    val factorOpacity = if (modoEdicaoFrequencia) 1.0f else 0.4f
 
                     Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFF0F0F0)), shape = RoundedCornerShape(4.dp)) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Text(crismando.nome, fontWeight = FontWeight.Bold, color = Color.Black.copy(alpha = if (modoPreenchimentoAutomatico) 1.0f else 0.6f), fontSize = 14.sp)
+                            Text(crismando.nome, fontWeight = FontWeight.Bold, color = Color.Black.copy(alpha = if (modoEdicaoFrequencia) 1.0f else 0.6f), fontSize = 14.sp)
                             Spacer(modifier = Modifier.height(8.dp))
 
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Button(
                                     onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.PRESENTE },
-                                    enabled = modoPreenchimentoAutomatico,
+                                    enabled = modoEdicaoFrequencia,
                                     modifier = Modifier.weight(1f).height(36.dp),
                                     contentPadding = PaddingValues(0.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -718,7 +790,7 @@ fun TurmaJovemScreen(navController: NavController) {
 
                                 Button(
                                     onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.FALTA },
-                                    enabled = modoPreenchimentoAutomatico,
+                                    enabled = modoEdicaoFrequencia,
                                     modifier = Modifier.weight(1f).height(36.dp),
                                     contentPadding = PaddingValues(0.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -734,7 +806,7 @@ fun TurmaJovemScreen(navController: NavController) {
 
                                 Button(
                                     onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.JUSTIFICADA },
-                                    enabled = modoPreenchimentoAutomatico,
+                                    enabled = modoEdicaoFrequencia,
                                     modifier = Modifier.weight(1f).height(36.dp),
                                     contentPadding = PaddingValues(0.dp),
                                     colors = ButtonDefaults.buttonColors(
@@ -757,14 +829,14 @@ fun TurmaJovemScreen(navController: NavController) {
                         onClick = {
                             var salvasComSucesso = 0
                             listaCrismandosFirestore.forEach { crismando ->
-                                val chaveMap = "Jov_${idTurmaSelecionada}_${encuentroSelecionado}_${crismando.id}"
+                                val chaveMap = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
                                 val statusParaSalvar = frequenciaPorEncontro[chaveMap] ?: StatusFrequencia.NENHUM
 
-                                val docIdFrequencia = "FREQ_T-${idTurmaSelecionada}_E-${encuentroSelecionado}_A-${crismando.id}"
+                                val docIdFrequencia = "FREQ_T-${idTurmaSelecionada}_E-${encontroSelecionado}_A-${crismando.id}"
 
                                 val dadosFrequenciaMap = hashMapOf(
                                     "turmaId" to idTurmaSelecionada!!,
-                                    "encontro" to encuentroSelecionado!!,
+                                    "encontro" to encontroSelecionado!!,
                                     "alunoId" to crismando.id,
                                     "alunoNome" to crismando.nome,
                                     "status" to statusParaSalvar.name,
@@ -778,7 +850,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                         salvasComSucesso++
                                         if (salvasComSucesso == listaCrismandosFirestore.size) {
                                             Toast.makeText(context, "Chamada de Jovens salva com sucesso!", Toast.LENGTH_SHORT).show()
-                                            modoPreenchimentoAutomatico = false
+                                            modoEdicaoFrequencia = false
                                             showFrequenciaPopup = false
                                         }
                                     }
@@ -796,12 +868,17 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     if (showFinanceiroPopup) {
-        CustomPopupJovem(title = "Financeiro", onDismiss = { showFinanceiroPopup = false; idTurmaSelecionada = null; crismandoSelecionado = null }) {
+        CustomPopupJovem(title = "Financeiro Jovens", onDismiss = { showFinanceiroPopup = false; idTurmaSelecionada = null; crismandoSelecionado = null; parcelaSelecionadaFinanceira = null }) {
             if (idTurmaSelecionada == null) {
                 items(listaTurmasFirestore) { turma ->
                     Card(onClick = { idTurmaSelecionada = turma.id }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary)
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            // O weight(1f) faz o texto ocupar todo o espaço disponível, empurrando o ícone para o fim
+                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
+
+                            // Um pequeno espaço de segurança antes do ícone
+                            Spacer(modifier = Modifier.width(8.dp))
+
                             Icon(Icons.Outlined.Payments, null, tint = Crisma_Primary)
                         }
                     }
@@ -809,22 +886,86 @@ fun TurmaJovemScreen(navController: NavController) {
             } else if (crismandoSelecionado == null) {
                 item { TextButton(onClick = { idTurmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
                 items(listaCrismandosFirestore) { aluno ->
-                    Card(onClick = { crismandoSelecionado = aluno.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(aluno.nome, color = Crisma_Primary)
+                    Card(onClick = { crismandoSelecionado = aluno.id; nomeCrismandoSelecionadoFixo = aluno.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
+                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(aluno.nome, color = Color.Black, modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary)
                         }
                     }
                 }
-            } else {
-                item { TextButton(onClick = { crismandoSelecionado = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items(10) { i ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), shape = RoundedCornerShape(4.dp)) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text("Parcela ${i+1}", modifier = Modifier.weight(1f))
-                            Button(onClick = {}, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)), shape = RoundedCornerShape(4.dp)) {
-                                Text("PAGO", fontSize = 10.sp)
+            } else if (parcelaSelecionadaFinanceira == null) {
+                item {
+                    TextButton(onClick = { crismandoSelecionado = null }) {
+                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
+                        Text(" Voltar", color = Crisma_Primary)
+                    }
+                }
+                items((1..12).toList()) { numeroParcela ->
+                    val parcelaExistente = listaParcelasFinanceiras.firstOrNull { it.numeroParcela == numeroParcela }
+                    val parcelaPaga = parcelaExistente?.statusPago == true
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Parcela $numeroParcela", modifier = Modifier.weight(1f))
+
+                            if (parcelaPaga) {
+                                Button(
+                                    onClick = {
+                                        nomeCatequistaPagamento = parcelaExistente?.recebidoPor ?: "Não identificado"
+                                        showPagamentoInfoDialog = true
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text("PAGO", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            } else {
+                                Button(
+                                    onClick = { parcelaSelecionadaFinanceira = numeroParcela },
+                                    colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
+                                    shape = RoundedCornerShape(4.dp)
+                                ) {
+                                    Text("Pagar", color = Color.DarkGray, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                }
                             }
+                        }
+                    }
+                }
+            } else {
+                item {
+                    val alunoIdFixo = crismandoSelecionado!!
+                    val alunoNomeFixo = nomeCrismandoSelecionadoFixo
+                    val parcelaFixa = parcelaSelecionadaFinanceira!!
+
+                    Column(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
+                        TextButton({ parcelaSelecionadaFinanceira = null }) { Icon(Icons.Outlined.ArrowBack, null); Text(" Voltar") }
+                        Text("Lançando Parcela $parcelaFixa", fontWeight = FontWeight.Bold)
+                        Text("Crismando: $alunoNomeFixo", color = Color.Gray)
+                        Spacer(modifier = Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = catequistaResponsavelInput,
+                            onValueChange = { catequistaResponsavelInput = it },
+                            label = { Text("Catequista Responsável") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Button(
+                            onClick = { showAlertaFinanceiroEtapa1 = true },
+                            enabled = catequistaResponsavelInput.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text("Confirmar Recebimento", fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -840,7 +981,8 @@ fun TurmaJovemScreen(navController: NavController) {
                 items(listaTurmasFirestore) { turma ->
                     Card(onClick = { idTurmaSelecionada = turma.id; nomeTurmaSelecionada = turma.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Crisma_Primary)
+                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Icon(Icons.Outlined.BarChart, null, tint = Crisma_Primary)
                         }
                     }
@@ -850,7 +992,7 @@ fun TurmaJovemScreen(navController: NavController) {
                     Column(modifier = Modifier.fillMaxWidth()) {
                         TextButton(onClick = { idTurmaSelecionada = null }) {
                             Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
-                            Text(" Voltar para Salas", color = Crisma_Primary)
+                            Text(" Voltar para as turmas", color = Crisma_Primary)
                         }
 
                         Row(
@@ -861,26 +1003,47 @@ fun TurmaJovemScreen(navController: NavController) {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = if (exibirPorcentagemFalta) Icons.Outlined.TrendingUp else Icons.Outlined.Assessment,
-                                    contentDescription = null,
-                                    tint = Crisma_Primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = if (exibirPorcentagemFalta) "Visualizando Faltas (%)" else "Visualizando Presenças (%)",
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.DarkGray
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 12.dp, vertical = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(
+                                        imageVector = if (exibirPorcentagemFalta) Icons.Outlined.TrendingUp else Icons.Outlined.Assessment,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = if (exibirPorcentagemFalta) "Faltas (%)" else "Presenças (%)",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.DarkGray
+                                    )
+                                }
+
+                                // SUBSTiTUA APENAS ESTE COMPONENTE SWITCH ABAIXO:
+                                Switch(
+                                    checked = !exibirPorcentagemFalta, // Mantém a lógica nativa de inversão da turma jovem
+                                    onCheckedChange = { exibirPorcentagemFalta = !it },
+                                    colors = SwitchDefaults.colors(
+                                        // Ligado (On) -> Fundo Vermelho, Bolinha Branca
+                                        checkedThumbColor = Color.White,
+                                        checkedTrackColor = Color(0xFF2E7D32),
+                                        checkedBorderColor = Color(0xFF2E7D32),
+
+                                        // Desligado (Off) -> Fundo Verde, Bolinha Branca
+                                        uncheckedThumbColor = Color.White,
+                                        uncheckedTrackColor = Color(0xFFFF0000),
+                                        uncheckedBorderColor = Color(0xFFFF0000)
+                                    )
                                 )
                             }
-                            Switch(
-                                checked = !exibirPorcentagemFalta,
-                                onCheckedChange = { exibirPorcentagemFalta = !it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color.Red)
-                            )
                         }
                         Spacer(modifier = Modifier.height(10.dp))
                     }
@@ -970,7 +1133,6 @@ fun TurmaJovemScreen(navController: NavController) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(text = aviso.texto, modifier = Modifier.weight(1f), fontSize = 14.sp, color = Color.DarkGray)
 
-                        // 💡 EXCLUSÃO DE AVISO: Configura os estados reativos para acionar o alerta temporizado
                         IconButton(onClick = {
                             idAvisoParaExcluir = aviso.id
                             textoAvisoParaExcluir = aviso.texto
@@ -990,7 +1152,7 @@ fun TurmaJovemScreen(navController: NavController) {
         AlertDialog(
             onDismissRequest = { idEncontroParaExcluir = null },
             title = { Text("Confirmar Exclusão", fontWeight = FontWeight.Bold) },
-            text = { Text("Deseja mesmo excluir o ${numeroEncontroParaExcluir}º Encontro? Essa ação é irreversível.") },
+            text = { Text("Deseja mesmo excluir the ${numeroEncontroParaExcluir}º Encontro? Essa ação é irreversível.") },
             dismissButton = {
                 TextButton(onClick = { idEncontroParaExcluir = null }) {
                     Text("Cancelar", color = Color.Gray)
@@ -1052,7 +1214,6 @@ fun TurmaJovemScreen(navController: NavController) {
         )
     }
 
-    // 💡 DIÁLOGO DE CONFIRMAÇÃO DE EXCLUSÃO DE AVISOS COM TRAVA DE 2 SEGUNDOS
     if (idAvisoParaExcluir != null) {
         AlertDialog(
             onDismissRequest = { idAvisoParaExcluir = null },
@@ -1085,6 +1246,81 @@ fun TurmaJovemScreen(navController: NavController) {
             }
         )
     }
+
+    if (showPagamentoInfoDialog) {
+        AlertDialog(
+            onDismissRequest = { showPagamentoInfoDialog = false },
+            confirmButton = {
+                Button(onClick = { showPagamentoInfoDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) {
+                    Text("OK")
+                }
+            },
+            title = { Text("Pagamento Registrado", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32)) },
+            text = { Text("Essa parcela foi recebida por:\n\n$nomeCatequistaPagamento") }
+        )
+    }
+
+    if (showAlertaFinanceiroEtapa1) {
+        AlertDialog(
+            onDismissRequest = { showAlertaFinanceiroEtapa1 = false },
+            title = { Text("Registro Imutável", color = Color.Red, fontWeight = FontWeight.Bold) },
+            text = { Text("NÃO será possível reverter, editar ou excluir esta informação posterior ao envio.") },
+            dismissButton = { TextButton({ showAlertaFinanceiroEtapa1 = false }) { Text("Cancelar", color = Color.Gray) } },
+            confirmButton = {
+                AnimatedVisibility(visible = liberarBotaoFinanceiroEtapa1) {
+                    Button(
+                        onClick = { showAlertaFinanceiroEtapa1 = false; showAlertaFinanceiroEtapa2 = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+                        shape = RoundedCornerShape(4.dp)
+                    ) { Text("Estou Ciente, Avançar") }
+                }
+            }
+        )
+    }
+
+    if (showAlertaFinanceiroEtapa2) {
+        val alunoIdSalvar = crismandoSelecionado ?: ""
+        val alunoNomeSalvar = nomeCrismandoSelecionadoFixo
+        val parcelaSalvar = parcelaSelecionadaFinanceira ?: 0
+
+        AlertDialog(
+            onDismissRequest = { showAlertaFinanceiroEtapa2 = false },
+            title = { Text("Segurança") },
+            text = { Text("Confirma o recebimento sob responsabilidade de: \"$catequistaResponsavelInput\"?") },
+            dismissButton = { TextButton({ showAlertaFinanceiroEtapa2 = false }) { Text("Voltar", color = Color.Gray) } },
+            confirmButton = {
+                AnimatedVisibility(visible = liberarBotaoFinanceiroEtapa2) {
+                    Button(
+                        onClick = {
+                            val dadosFinanceiroMap = hashMapOf(
+                                "turmaId" to idTurmaSelecionada!!,
+                                "alunoId" to alunoIdSalvar,
+                                "alunoNome" to alunoNomeSalvar,
+                                "parcela" to parcelaSalvar,
+                                "catequista" to catequistaResponsavelInput,
+                                "status" to "PAGO",
+                                "editavel" to false,
+                                "dataLancamento" to System.currentTimeMillis()
+                            )
+
+                            db.collection("financeiro")
+                                .document("FIN_T-${idTurmaSelecionada}_P-${parcelaSalvar}_A-${alunoIdSalvar}")
+                                .set(dadosFinanceiroMap)
+                                .addOnSuccessListener {
+                                    Toast.makeText(context, "Parcela registrada no Firebase!", Toast.LENGTH_SHORT).show()
+                                    showAlertaFinanceiroEtapa2 = false
+                                    parcelaSelecionadaFinanceira = null
+                                    catequistaResponsavelInput = ""
+                                    crismandoSelecionado = null
+                                }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
+                        shape = RoundedCornerShape(4.dp)
+                    ) { Text("Confirmar e Gravar") }
+                }
+            }
+        )
+    }
 }
 
 @Composable
@@ -1098,8 +1334,8 @@ fun SmallMenuCardJovem(title: String, icon: ImageVector, modifier: Modifier = Mo
         modifier = modifier
             .height(80.dp)
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), // 💡 Fundo unificado com o cinza sutil dos avisos
-        shape = RoundedCornerShape(4.dp), // 💡 Bordas modernas menos arredondadas
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
+        shape = RoundedCornerShape(4.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
@@ -1107,19 +1343,9 @@ fun SmallMenuCardJovem(title: String, icon: ImageVector, modifier: Modifier = Mo
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = title,
-                tint = Crisma_Primary,
-                modifier = Modifier.size(24.dp)
-            )
+            Icon(imageVector = icon, contentDescription = title, tint = Crisma_Primary, modifier = Modifier.size(24.dp))
             Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = title,
-                color = Color.Black,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold
-            )
+            Text(text = title, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
