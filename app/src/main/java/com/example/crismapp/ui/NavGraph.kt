@@ -2,20 +2,26 @@ package com.example.crismapp.ui
 
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import com.example.crismapp.ui.UserSelectionScreen
-import com.example.crismapp.ui.CatequistaLoginScreen
-import com.example.crismapp.ui.CrismandoScreen
-import com.example.crismapp.ui.CatequistaOptionsScreen
-import com.example.crismapp.ui.CrismandoLoginScreen
+import androidx.navigation.navArgument
 
 @Composable
-fun NavGraph(navController: NavHostController, startDestination: String = "userSelection") {
-    NavHost(navController = navController, startDestination = startDestination) {
+fun NavGraph(
+    navController: NavHostController,
+    startDestination: String = "userSelection"
+) {
+    NavHost(
+        navController = navController,
+        startDestination = startDestination
+    ) {
 
-        // Tela de Seleção Inicial
-        composable("userSelection") {
+        // =====================================================
+        // TELA INICIAL
+        // =====================================================
+
+        composable(route = "userSelection") {
             UserSelectionScreen(
                 onCrismandoSelected = {
                     navController.navigate("crismandoLoginScreen")
@@ -26,34 +32,72 @@ fun NavGraph(navController: NavHostController, startDestination: String = "userS
             )
         }
 
-        // --- NOVA ROTA DE LOGIN DO CRISMANDO ---
-        composable("crismandoLoginScreen") {
-            CrismandoLoginScreen(navController = navController)
+        // =====================================================
+        // LOGIN DO CRISMANDO
+        // =====================================================
+
+        composable(route = "crismandoLoginScreen") {
+            CrismandoLoginScreen(
+                navController = navController
+            )
         }
 
-        // Tela de Login do Catequista
-        composable("LoginCatequista") {
-            CatequistaLoginScreen(navController = navController)
+        // =====================================================
+        // LOGIN E OPÇÕES DO CATEQUISTA
+        // =====================================================
+
+        composable(route = "LoginCatequista") {
+            CatequistaLoginScreen(
+                navController = navController
+            )
         }
 
-        // Tela de Opções do Catequista (Turmas e Sair)
-        composable("catequistaOptions") {
-            CatequistaOptionsScreen(navController = navController)
+        composable(route = "catequistaOptions") {
+            CatequistaOptionsScreen(
+                navController = navController
+            )
         }
 
-        // Rota unificada e direta para a tela do crismando
-        composable("crismandoScreen") {
-            CrismandoScreen(navController = navController)
+        // =====================================================
+        // ÁREA DO CRISMANDO
+        //
+        // Agora esta rota aceita uma matrícula:
+        //
+        // crismandoScreen?matricula=CX-1234
+        //
+        // A matrícula é opcional temporariamente para não
+        // quebrar o código antigo enquanto fazemos a migração.
+        // =====================================================
+
+        composable(
+            route = "crismandoScreen?matricula={matricula}",
+            arguments = listOf(
+                navArgument(name = "matricula") {
+                    type = NavType.StringType
+                    defaultValue = ""
+                    nullable = false
+                }
+            )
+        ) {
+            CrismandoScreen(
+                navController = navController
+            )
         }
 
-        // --- ROTAS DE GESTÃO DE TURMAS ---
+        // =====================================================
+        // GESTÃO DAS TURMAS
+        // =====================================================
 
-        composable("turmaJovemScreen") {
-            TurmaJovemScreen(navController = navController)
+        composable(route = "turmaJovemScreen") {
+            TurmaJovemScreen(
+                navController = navController
+            )
         }
 
-        composable("turmaAdultaScreen") {
-            TurmaAdultaScreen(navController = navController)
+        composable(route = "turmaAdultaScreen") {
+            TurmaAdultaScreen(
+                navController = navController
+            )
         }
     }
 }

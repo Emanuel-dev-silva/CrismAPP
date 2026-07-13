@@ -1,7 +1,6 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
@@ -39,9 +38,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import com.example.crismapp.R
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
-import kotlin.random.Random
 
 // Classes de dados do escopo da tela
 data class EncontroCatequeseJovem(val id: String, val numero: Int, val dataManual: String, val turmaId: String)
@@ -110,8 +107,6 @@ fun TurmaJovemScreen(navController: NavController) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
-    val db = FirebaseFirestore.getInstance()
-
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
     var showDadosPopup by remember { mutableStateOf(false) }
@@ -173,6 +168,7 @@ fun TurmaJovemScreen(navController: NavController) {
     var listaParcelasFinanceiras by remember { mutableStateOf<List<ParcelaFinanceira>>(emptyList()) }
 
     var listaEncontrosFirestore by remember { mutableStateOf(listOf<EncontroCatequeseJovem>()) }
+    var listaFrequenciasFirestore by remember { mutableStateOf<List<RegistroFrequencia>>(emptyList()) }
     var todasFrequenciasGeraisByTurma by remember { mutableStateOf(listOf<Map<String, Any>>()) }
 
     var animarImagem by remember { mutableStateOf(false) }
@@ -231,138 +227,220 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     // 1. Ouvinte reativo das turmas jovens
-    LaunchedEffect(Unit) {
-        db.collection("turmas")
-            .whereEqualTo("categoria", "jovem")
-            .addSnapshotListener { snapshot, error ->
-                if (error != null) return@addSnapshotListener
-                if (snapshot != null) {
-                    listaTurmasFirestore = snapshot.documents.mapNotNull { doc ->
-                        val nome = doc.getString("nome") ?: ""
-                        if (nome.isNotEmpty()) Turma(id = doc.id, nome = nome) else null
-                    }.sortedBy { it.nome }
-                }
+    DisposableEffect(Unit) {
+        val listener = FirebaseRepository.ouvirTurmas(
+            categoria = "jovem",
+            onUpdate = { turmas ->
+                listaTurmasFirestore = turmas
+            },
+            onError = {
+                Toast.makeText(
+                    context,
+                    "Não foi possível carregar as turmas.",
+                    Toast.LENGTH_SHORT
+                ).show()
             }
+        )
+
+        onDispose {
+            listener.remove()
+        }
     }
 
     // 2. Ouvinte reativo para os crismandos da turma selecionada
     DisposableEffect(idTurmaSelecionada) {
-        if (idTurmaSelecionada == null) {
+        val turmaId = idTurmaSelecionada
+
+        if (turmaId == null) {
             listaCrismandosFirestore = emptyList()
             onDispose { }
         } else {
-            val listener = db.collection("usuarios")
-                .whereEqualTo("turmaId", idTurmaSelecionada)
-                .addSnapshotListener { snapshot, error ->
-                    if (error != null || snapshot == null) {
-                        return@addSnapshotListener
-                    }
-                    listaCrismandosFirestore = snapshot.documents.mapNotNull { doc ->
-                        val nome = doc.getString("nome") ?: ""
-                        val tId = doc.getString("turmaId") ?: ""
-                        if (nome.isNotEmpty()) {
-                            Crismando(id = doc.id, nome = nome, turmaId = tId)
-                        } else null
-                    }.sortedBy { it.nome }
+            val listener = FirebaseRepository.ouvirCrismandosDaTurma(
+                turmaId = turmaId,
+                onUpdate = { crismandos ->
+                    listaCrismandosFirestore = crismandos
+                },
+                onError = {
+                    Toast.makeText(
+                        context,
+                        "Não foi possível carregar os crismandos.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
-            onDispose { listener.remove() }
+            )
+
+            onDispose {
+                listener.remove()
+            }
         }
     }
 
     // 2.B Ouvinte reativo dos encontros da turma selecionada
-    LaunchedEffect(idTurmaSelecionada) {
-        if (idTurmaSelecionada == null) {
+    DisposableEffect(idTurmaSelecionada) {
+        val turmaId = idTurmaSelecionada
+
+        if (turmaId == null) {
             listaEncontrosFirestore = emptyList()
-            return@LaunchedEffect
-        }
-        db.collection("encontros")
-            .whereEqualTo("turmaId", idTurmaSelecionada)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-                listaEncontrosFirestore = snapshot.documents.mapNotNull { doc ->
-                    val num = doc.getLong("numero")?.toInt() ?: 0
-                    val dataMan = doc.getString("dataManual") ?: ""
-                    val tId = doc.getString("turmaId") ?: ""
-                    if (num > 0) EncontroCatequeseJovem(id = doc.id, numero = num, dataManual = dataMan, turmaId = tId) else null
-                }.sortedBy { it.numero }
-            }
-    }
-
-    // 2.C Ouvinte reativo que puxa todas as frequências da sala para o cálculo matemático automático
-    LaunchedEffect(idTurmaSelecionada) {
-        if (idTurmaSelecionada == null) {
-            todasFrequenciasGeraisByTurma = emptyList()
-            return@LaunchedEffect
-        }
-        db.collection("frequencias")
-            .whereEqualTo("turmaId", idTurmaSelecionada)
-            .addSnapshotListener { snapshot, _ ->
-                if (snapshot != null) {
-                    todasFrequenciasGeraisByTurma = snapshot.documents.map { doc -> doc.data ?: emptyMap() }
-                }
-            }
-    }
-
-    // Ouvinte reativo financeiro
-    LaunchedEffect(crismandoSelecionado) {
-        if (crismandoSelecionado == null) {
-            listaParcelasFinanceiras = emptyList()
-            return@LaunchedEffect
-        }
-
-        db.collection("financeiro")
-            .whereEqualTo("alunoId", crismandoSelecionado)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-                listaParcelasFinanceiras = snapshot.documents.mapNotNull { doc ->
-                    ParcelaFinanceira(
-                        id = doc.id,
-                        numeroParcela = doc.getLong("numeroParcela")?.toInt() ?: doc.getLong("parcela")?.toInt() ?: 0,
-                        alunoId = doc.getString("alunoId") ?: "",
-                        statusPago = (doc.getString("status") == "PAGO") || (doc.getBoolean("statusPago") ?: false),
-                        recebidoPor = doc.getString("recebidoPor") ?: doc.getString("catequista") ?: "",
-                        dataPagamento = doc.getLong("dataPagamento") ?: doc.getLong("dataLancamento") ?: 0L
-                    )
-                }
-            }
-    }
-
-    // 3. Ouvinte reativo dos avisos
-    LaunchedEffect(Unit) {
-        db.collection("avisos")
-            .whereEqualTo("turmaId", "turma_jovem")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null || snapshot == null) return@addSnapshotListener
-                listaAvisosAtivos = snapshot.documents.mapNotNull { doc ->
-                    val txt = doc.getString("texto") ?: ""
-                    val tp = doc.getString("tipo") ?: "gerais"
-                    val tId = doc.getString("turmaId") ?: ""
-                    val data = doc.getLong("dataCriacao") ?: 0L
-                    if (txt.isNotEmpty()) Aviso(id = doc.id, texto = txt, tipo = tp, turmaId = tId, dataCriacao = data) else null
-                }.sortedByDescending { it.dataCriacao }
-            }
-    }
-
-    // 4. Ouvinte reativo global para a frequência em nuvem
-    LaunchedEffect(idTurmaSelecionada, encontroSelecionado) {
-        if (idTurmaSelecionada == null || encontroSelecionado == null) return@LaunchedEffect
-
-        db.collection("frequencias")
-            .whereEqualTo("turmaId", idTurmaSelecionada)
-            .whereEqualTo("encontro", encontroSelecionado)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
-
-                snapshot.documents.forEach { doc ->
-                    val alunoId = doc.getString("alunoId") ?: ""
-                    val statusString = doc.getString("status") ?: "NENHUM"
-
-                    if (alunoId.isNotEmpty()) {
-                        val apiKeyMap = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${alunoId}"
-                        frequenciaPorEncontro[apiKeyMap] = StatusFrequencia.valueOf(statusString)
+            onDispose { }
+        } else {
+            val listener = FirebaseRepository.ouvirEncontrosDaTurma(
+                turmaId = turmaId,
+                onUpdate = { encontros ->
+                    listaEncontrosFirestore = encontros.map { encontro ->
+                        EncontroCatequeseJovem(
+                            id = encontro.id,
+                            numero = encontro.numero,
+                            dataManual = encontro.dataManual,
+                            turmaId = encontro.turmaId
+                        )
                     }
+                },
+                onError = {
+                    Toast.makeText(
+                        context,
+                        "Não foi possível carregar os encontros.",
+                        Toast.LENGTH_SHORT
+                    ).show()
                 }
+            )
+
+            onDispose {
+                listener.remove()
             }
+        }
+    }
+
+    // 2.C Ouvinte reativo de todas as frequências da turma
+    DisposableEffect(idTurmaSelecionada) {
+        val turmaId = idTurmaSelecionada
+
+        if (turmaId == null) {
+            listaFrequenciasFirestore = emptyList()
+            todasFrequenciasGeraisByTurma = emptyList()
+            onDispose { }
+        } else {
+            val listener = FirebaseRepository.ouvirFrequenciasDaTurma(
+                turmaId = turmaId,
+                onUpdate = { frequencias ->
+                    listaFrequenciasFirestore = frequencias
+
+                    // Mantém o formato que a área de estatísticas já utiliza,
+                    // sem alterar o visual nem os cálculos existentes.
+                    todasFrequenciasGeraisByTurma = frequencias.map { frequencia ->
+                        mapOf(
+                            "alunoId" to frequencia.alunoId,
+                            "turmaId" to frequencia.turmaId,
+                            "encontro" to frequencia.encontro,
+                            "status" to frequencia.status
+                        )
+                    }
+                },
+                onError = {
+                    Toast.makeText(
+                        context,
+                        "Não foi possível carregar as frequências.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
+    // Ouvinte reativo financeiro do crismando selecionado
+    DisposableEffect(crismandoSelecionado) {
+        val alunoId = crismandoSelecionado
+
+        if (alunoId == null) {
+            listaParcelasFinanceiras = emptyList()
+            onDispose { }
+        } else {
+            val listener = FirebaseRepository.ouvirFinanceiroDoAluno(
+                alunoId = alunoId,
+                onUpdate = { pagamentos ->
+                    listaParcelasFinanceiras = pagamentos.map { pagamento ->
+                        ParcelaFinanceira(
+                            id = pagamento.id,
+                            numeroParcela = pagamento.obterNumeroParcela(),
+                            alunoId = pagamento.alunoId,
+                            statusPago = pagamento.estaPago(),
+                            recebidoPor = pagamento.obterResponsavelPagamento(),
+                            dataPagamento = pagamento.obterDataPagamento()
+                        )
+                    }
+                },
+                onError = {
+                    Toast.makeText(
+                        context,
+                        "Não foi possível carregar os pagamentos.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
+    // 3. Ouvinte reativo dos avisos da turma selecionada
+    DisposableEffect(idTurmaSelecionada) {
+        val turmaId = idTurmaSelecionada
+
+        if (turmaId == null) {
+            listaAvisosAtivos = emptyList()
+            onDispose { }
+        } else {
+            val listener = FirebaseRepository.ouvirAvisosDaTurma(
+                turmaId = turmaId,
+                categoria = "jovem",
+                onUpdate = { avisos ->
+                    listaAvisosAtivos = avisos
+                },
+                onError = {
+                    Toast.makeText(
+                        context,
+                        "Não foi possível carregar os avisos.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            )
+
+            onDispose {
+                listener.remove()
+            }
+        }
+    }
+
+    // 4. Reflete no mapa local as frequências do encontro selecionado
+    LaunchedEffect(
+        listaFrequenciasFirestore,
+        listaCrismandosFirestore,
+        idTurmaSelecionada,
+        encontroSelecionado
+    ) {
+        val turmaId = idTurmaSelecionada
+        val encontro = encontroSelecionado
+
+        if (turmaId == null || encontro == null) {
+            return@LaunchedEffect
+        }
+
+        listaCrismandosFirestore.forEach { crismando ->
+            val chave = "Jov_${turmaId}_${encontro}_${crismando.id}"
+
+            val registro = listaFrequenciasFirestore.firstOrNull { frequencia ->
+                frequencia.alunoId == crismando.id &&
+                        frequencia.encontro == encontro
+            }
+
+            frequenciaPorEncontro[chave] =
+                registro?.obterStatus() ?: StatusFrequencia.NENHUM
+        }
     }
 
     // Lógica do Switch de preenchimento automático
@@ -436,7 +514,12 @@ fun TurmaJovemScreen(navController: NavController) {
                                 modoCriarTurma = false
                                 showTurmasPopup = true
                             }
-                            SmallMenuCardJovem(title = "Avisos", icon = Icons.Outlined.Notifications, modifier = Modifier.weight(1f)) { showAvisosPopup = true }
+                            SmallMenuCardJovem(title = "Avisos", icon = Icons.Outlined.Notifications, modifier = Modifier.weight(1f)) {
+                                idTurmaSelecionada = null
+                                nomeTurmaSelecionada = null
+                                listaAvisosAtivos = emptyList()
+                                showAvisosPopup = true
+                            }
                         }
                         Spacer(modifier = Modifier.height(8.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -475,12 +558,26 @@ fun TurmaJovemScreen(navController: NavController) {
                     Button(
                         onClick = {
                             if (novoNomeTurma.isNotBlank()) {
-                                val novaTurmaMap = hashMapOf("nome" to novoNomeTurma, "categoria" to "jovem")
-                                db.collection("turmas").add(novaTurmaMap).addOnSuccessListener {
-                                    Toast.makeText(context, "Turma criada!", Toast.LENGTH_SHORT).show()
-                                    novoNomeTurma = ""
-                                    modoCriarTurma = false
-                                }
+                                FirebaseRepository.criarTurma(
+                                    nome = novoNomeTurma,
+                                    categoria = "jovem",
+                                    onSuccess = { turmaCriada ->
+                                        Toast.makeText(
+                                            context,
+                                            "Turma criada: ${turmaCriada.id}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        novoNomeTurma = ""
+                                        modoCriarTurma = false
+                                    },
+                                    onError = { erro ->
+                                        Toast.makeText(
+                                            context,
+                                            erro.message ?: "Erro ao criar a turma.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                )
                             }
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
@@ -527,13 +624,26 @@ fun TurmaJovemScreen(navController: NavController) {
                         trailingIcon = {
                             IconButton(onClick = {
                                 if (novoNomeCrismando.isNotBlank()) {
-                                    val numeroAleatorio = Random.nextInt(1000, 9999)
-                                    val codigoGerado = "CX-$numeroAleatorio"
-                                    val novoUsuarioMap = hashMapOf("nome" to novoNomeCrismando, "turmaId" to idTurmaSelecionada!!, "matricula" to codigoGerado)
-                                    db.collection("usuarios").document(codigoGerado).set(novoUsuarioMap).addOnSuccessListener {
-                                        Toast.makeText(context, "Adicionado! Código: $codigoGerado", Toast.LENGTH_LONG).show()
-                                        novoNomeCrismando = ""
-                                    }
+                                    FirebaseRepository.criarCrismando(
+                                        nome = novoNomeCrismando,
+                                        turmaId = idTurmaSelecionada!!,
+                                        categoria = "jovem",
+                                        onSuccess = { crismandoCriado ->
+                                            Toast.makeText(
+                                                context,
+                                                "Adicionado! Código: ${crismandoCriado.obterMatricula()}",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                            novoNomeCrismando = ""
+                                        },
+                                        onError = { erro ->
+                                            Toast.makeText(
+                                                context,
+                                                erro.message ?: "Erro ao cadastrar o crismando.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
                                 }
                             }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
                         }
@@ -547,7 +657,29 @@ fun TurmaJovemScreen(navController: NavController) {
                                 Text(crismando.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Text("Matrícula: ${crismando.id}", fontSize = 11.sp, color = Color.Gray)
                             }
-                            IconButton(onClick = { db.collection("usuarios").document(crismando.id).delete() }) { Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f)) }
+                            IconButton(
+                                onClick = {
+                                    FirebaseRepository.excluirCrismandoDefinitivamente(
+                                        matricula = crismando.id,
+                                        onSuccess = {
+                                            Toast.makeText(
+                                                context,
+                                                "Crismando e dados relacionados excluídos.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        },
+                                        onError = { erro ->
+                                            Toast.makeText(
+                                                context,
+                                                erro.message ?: "Erro ao excluir o crismando.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
+                                }
+                            ) {
+                                Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f))
+                            }
                         }
                     }
                 }
@@ -650,12 +782,25 @@ fun TurmaJovemScreen(navController: NavController) {
                                                 val dataComBarras = StringBuilder(dataEncontroEdicaoInput)
                                                     .insert(2, "/").insert(5, "/").toString()
 
-                                                db.collection("encontros").document(encontro.id)
-                                                    .update("dataManual", dataComBarras)
-                                                    .addOnSuccessListener {
-                                                        Toast.makeText(context, "Data updated!", Toast.LENGTH_SHORT).show()
+                                                FirebaseRepository.atualizarDataEncontro(
+                                                    encontroId = encontro.id,
+                                                    dataManual = dataComBarras,
+                                                    onSuccess = {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Data atualizada!",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
                                                         idEncontroEmEdicao = null
+                                                    },
+                                                    onError = { erro ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            erro.message ?: "Erro ao atualizar a data.",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
                                                     }
+                                                )
                                             }
                                         } else {
                                             Toast.makeText(context, "Digite os 8 números da data!", Toast.LENGTH_SHORT).show()
@@ -704,16 +849,26 @@ fun TurmaJovemScreen(navController: NavController) {
                                             .insert(5, "/")
                                             .toString()
 
-                                        val novoEncontroMap = hashMapOf(
-                                            "numero" to proximoNumero,
-                                            "dataManual" to dataComBarras,
-                                            "turmaId" to idTurmaSelecionada!!,
-                                            "dataCriacao" to System.currentTimeMillis()
+                                        FirebaseRepository.salvarEncontro(
+                                            turmaId = idTurmaSelecionada!!,
+                                            numero = proximoNumero,
+                                            dataManual = dataComBarras,
+                                            onSuccess = {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Encontro $proximoNumero adicionado!",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                novaDataEncontroInput = ""
+                                            },
+                                            onError = { erro ->
+                                                Toast.makeText(
+                                                    context,
+                                                    erro.message ?: "Erro ao adicionar o encontro.",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
                                         )
-                                        db.collection("encontros").add(novoEncontroMap).addOnSuccessListener {
-                                            Toast.makeText(context, "Encontro $proximoNumero adicionado!", Toast.LENGTH_SHORT).show()
-                                            novaDataEncontroInput = ""
-                                        }
                                     }
                                 } else {
                                     Toast.makeText(context, "Digite a data completa com 8 números!", Toast.LENGTH_SHORT).show()
@@ -827,33 +982,57 @@ fun TurmaJovemScreen(navController: NavController) {
                 item {
                     Button(
                         onClick = {
-                            var salvasComSucesso = 0
-                            listaCrismandosFirestore.forEach { crismando ->
-                                val chaveMap = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
-                                val statusParaSalvar = frequenciaPorEncontro[chaveMap] ?: StatusFrequencia.NENHUM
+                            if (listaCrismandosFirestore.isEmpty()) {
+                                Toast.makeText(
+                                    context,
+                                    "Não há crismandos cadastrados nesta turma.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            } else {
+                                var operacoesConcluidas = 0
+                                var ocorreuErro = false
 
-                                val docIdFrequencia = "FREQ_T-${idTurmaSelecionada}_E-${encontroSelecionado}_A-${crismando.id}"
+                                listaCrismandosFirestore.forEach { crismando ->
+                                    val chaveMap =
+                                        "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
 
-                                val dadosFrequenciaMap = hashMapOf(
-                                    "turmaId" to idTurmaSelecionada!!,
-                                    "encontro" to encontroSelecionado!!,
-                                    "alunoId" to crismando.id,
-                                    "alunoNome" to crismando.nome,
-                                    "status" to statusParaSalvar.name,
-                                    "dataAtualizacao" to System.currentTimeMillis()
-                                )
+                                    val statusParaSalvar =
+                                        frequenciaPorEncontro[chaveMap]
+                                            ?: StatusFrequencia.NENHUM
 
-                                db.collection("frequencias")
-                                    .document(docIdFrequencia)
-                                    .set(dadosFrequenciaMap)
-                                    .addOnSuccessListener {
-                                        salvasComSucesso++
-                                        if (salvasComSucesso == listaCrismandosFirestore.size) {
-                                            Toast.makeText(context, "Chamada de Jovens salva com sucesso!", Toast.LENGTH_SHORT).show()
-                                            modoEdicaoFrequencia = false
-                                            showFrequenciaPopup = false
+                                    FirebaseRepository.salvarFrequencia(
+                                        turmaId = idTurmaSelecionada!!,
+                                        encontro = encontroSelecionado!!,
+                                        alunoId = crismando.id,
+                                        status = statusParaSalvar,
+                                        onSuccess = {
+                                            operacoesConcluidas++
+
+                                            if (
+                                                operacoesConcluidas == listaCrismandosFirestore.size &&
+                                                !ocorreuErro
+                                            ) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Chamada de Jovens salva com sucesso!",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                modoEdicaoFrequencia = false
+                                                showFrequenciaPopup = false
+                                            }
+                                        },
+                                        onError = { erro ->
+                                            operacoesConcluidas++
+                                            ocorreuErro = true
+
+                                            Toast.makeText(
+                                                context,
+                                                erro.message ?: "Erro ao salvar a frequência.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         }
-                                    }
+                                    )
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
@@ -1101,43 +1280,160 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     if (showAvisosPopup) {
-        CustomPopupJovem(title = "Avisos Jovens", onDismiss = { showAvisosPopup = false }) {
-            item {
-                OutlinedTextField(value = novoAvisoTexto, onValueChange = { novoAvisoTexto = it }, placeholder = { Text("Novo aviso...") }, modifier = Modifier.fillMaxWidth())
-                Button(
-                    onClick = {
-                        if (novoAvisoTexto.isNotBlank()) {
-                            val novoAvisoMap = hashMapOf(
-                                "texto" to novoAvisoTexto,
-                                "tipo" to "gerais",
-                                "turmaId" to "turma_jovem",
-                                "dataCriacao" to System.currentTimeMillis()
-                            )
-                            db.collection("avisos").add(novoAvisoMap)
-                            novoAvisoTexto = ""
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                    shape = RoundedCornerShape(4.dp)
-                ) { Text("Publicar", fontWeight = FontWeight.Bold) }
-                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-            }
-            items(listaAvisosAtivos) { aviso ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-                    border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-                    shape = RoundedCornerShape(4.dp)
-                ) {
-                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(text = aviso.texto, modifier = Modifier.weight(1f), fontSize = 14.sp, color = Color.DarkGray)
+        val tituloAvisos = if (idTurmaSelecionada == null) {
+            "Avisos Jovens - Selecione a Turma"
+        } else {
+            "Avisos: $nomeTurmaSelecionada"
+        }
 
-                        IconButton(onClick = {
-                            idAvisoParaExcluir = aviso.id
-                            textoAvisoParaExcluir = aviso.texto
-                        }) {
-                            Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(alpha = 0.7f))
+        CustomPopupJovem(
+            title = tituloAvisos,
+            onDismiss = {
+                showAvisosPopup = false
+                idTurmaSelecionada = null
+                nomeTurmaSelecionada = null
+                novoAvisoTexto = ""
+                listaAvisosAtivos = emptyList()
+            }
+        ) {
+            if (idTurmaSelecionada == null) {
+                items(listaTurmasFirestore) { turma ->
+                    Card(
+                        onClick = {
+                            idTurmaSelecionada = turma.id
+                            nomeTurmaSelecionada = turma.nome
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF9F9F9)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = turma.nome,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            Icon(
+                                imageVector = Icons.Outlined.ArrowForwardIos,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp),
+                                tint = Crisma_Primary
+                            )
+                        }
+                    }
+                }
+            } else {
+                item {
+                    TextButton(
+                        onClick = {
+                            idTurmaSelecionada = null
+                            nomeTurmaSelecionada = null
+                            novoAvisoTexto = ""
+                            listaAvisosAtivos = emptyList()
+                        }
+                    ) {
+                        Icon(
+                            Icons.Outlined.ArrowBack,
+                            null,
+                            modifier = Modifier.size(16.dp),
+                            tint = Crisma_Primary
+                        )
+                        Text(" Voltar para Turmas", color = Crisma_Primary)
+                    }
+
+                    OutlinedTextField(
+                        value = novoAvisoTexto,
+                        onValueChange = { novoAvisoTexto = it },
+                        placeholder = { Text("Novo aviso...") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Button(
+                        onClick = {
+                            if (novoAvisoTexto.isNotBlank()) {
+                                FirebaseRepository.criarAviso(
+                                    turmaId = idTurmaSelecionada!!,
+                                    texto = novoAvisoTexto,
+                                    tipo = "gerais",
+                                    onSuccess = {
+                                        Toast.makeText(
+                                            context,
+                                            "Aviso publicado para $nomeTurmaSelecionada!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                        novoAvisoTexto = ""
+                                    },
+                                    onError = { erro ->
+                                        Toast.makeText(
+                                            context,
+                                            erro.message ?: "Erro ao publicar o aviso.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Crisma_Primary
+                        ),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Text("Publicar", fontWeight = FontWeight.Bold)
+                    }
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(vertical = 12.dp)
+                    )
+                }
+
+                items(listaAvisosAtivos) { aviso ->
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF9F9F9)
+                        ),
+                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
+                        shape = RoundedCornerShape(4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = aviso.texto,
+                                modifier = Modifier.weight(1f),
+                                fontSize = 14.sp,
+                                color = Color.DarkGray
+                            )
+
+                            IconButton(
+                                onClick = {
+                                    idAvisoParaExcluir = aviso.id
+                                    textoAvisoParaExcluir = aviso.texto
+                                }
+                            ) {
+                                Icon(
+                                    Icons.Outlined.Delete,
+                                    null,
+                                    tint = Color.Red.copy(alpha = 0.7f)
+                                )
+                            }
                         }
                     }
                 }
@@ -1165,11 +1461,26 @@ fun TurmaJovemScreen(navController: NavController) {
                 ) {
                     Button(
                         onClick = {
-                            db.collection("encontros").document(idEncontroParaExcluir!!).delete()
-                                .addOnSuccessListener {
-                                    Toast.makeText(context, "Encontro removido!", Toast.LENGTH_SHORT).show()
+                            FirebaseRepository.excluirEncontro(
+                                encontroId = idEncontroParaExcluir!!,
+                                turmaId = idTurmaSelecionada!!,
+                                numeroEncontro = numeroEncontroParaExcluir,
+                                onSuccess = {
+                                    Toast.makeText(
+                                        context,
+                                        "Encontro e frequências removidos!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     idEncontroParaExcluir = null
+                                },
+                                onError = { erro ->
+                                    Toast.makeText(
+                                        context,
+                                        erro.message ?: "Erro ao excluir o encontro.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
+                            )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                         shape = RoundedCornerShape(4.dp)
@@ -1198,11 +1509,26 @@ fun TurmaJovemScreen(navController: NavController) {
                 ) {
                     Button(
                         onClick = {
-                            db.collection("turmas").document(idTurmaParaExcluir!!).delete()
-                                .addOnSuccessListener {
-                                    Toast.makeText(context, "Turma excluída com sucesso!", Toast.LENGTH_SHORT).show()
+                            FirebaseRepository.excluirTurmaDefinitivamente(
+                                turmaId = idTurmaParaExcluir!!,
+                                onSuccess = {
+                                    Toast.makeText(
+                                        context,
+                                        "Turma e dados relacionados excluídos!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     idTurmaParaExcluir = null
+                                    idTurmaSelecionada = null
+                                    nomeTurmaSelecionada = null
+                                },
+                                onError = { erro ->
+                                    Toast.makeText(
+                                        context,
+                                        erro.message ?: "Erro ao excluir a turma.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
+                            )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                         shape = RoundedCornerShape(4.dp)
@@ -1231,11 +1557,24 @@ fun TurmaJovemScreen(navController: NavController) {
                 ) {
                     Button(
                         onClick = {
-                            db.collection("avisos").document(idAvisoParaExcluir!!).delete()
-                                .addOnSuccessListener {
-                                    Toast.makeText(context, "Aviso removido com sucesso!", Toast.LENGTH_SHORT).show()
+                            FirebaseRepository.excluirAviso(
+                                avisoId = idAvisoParaExcluir!!,
+                                onSuccess = {
+                                    Toast.makeText(
+                                        context,
+                                        "Aviso removido com sucesso!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     idAvisoParaExcluir = null
+                                },
+                                onError = { erro ->
+                                    Toast.makeText(
+                                        context,
+                                        erro.message ?: "Erro ao excluir o aviso.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
+                            )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
                         shape = RoundedCornerShape(4.dp)
@@ -1280,7 +1619,6 @@ fun TurmaJovemScreen(navController: NavController) {
 
     if (showAlertaFinanceiroEtapa2) {
         val alunoIdSalvar = crismandoSelecionado ?: ""
-        val alunoNomeSalvar = nomeCrismandoSelecionadoFixo
         val parcelaSalvar = parcelaSelecionadaFinanceira ?: 0
 
         AlertDialog(
@@ -1292,27 +1630,30 @@ fun TurmaJovemScreen(navController: NavController) {
                 AnimatedVisibility(visible = liberarBotaoFinanceiroEtapa2) {
                     Button(
                         onClick = {
-                            val dadosFinanceiroMap = hashMapOf(
-                                "turmaId" to idTurmaSelecionada!!,
-                                "alunoId" to alunoIdSalvar,
-                                "alunoNome" to alunoNomeSalvar,
-                                "parcela" to parcelaSalvar,
-                                "catequista" to catequistaResponsavelInput,
-                                "status" to "PAGO",
-                                "editavel" to false,
-                                "dataLancamento" to System.currentTimeMillis()
-                            )
-
-                            db.collection("financeiro")
-                                .document("FIN_T-${idTurmaSelecionada}_P-${parcelaSalvar}_A-${alunoIdSalvar}")
-                                .set(dadosFinanceiroMap)
-                                .addOnSuccessListener {
-                                    Toast.makeText(context, "Parcela registrada no Firebase!", Toast.LENGTH_SHORT).show()
+                            FirebaseRepository.salvarPagamento(
+                                turmaId = idTurmaSelecionada!!,
+                                alunoId = alunoIdSalvar,
+                                parcela = parcelaSalvar,
+                                recebidoPor = catequistaResponsavelInput,
+                                onSuccess = {
+                                    Toast.makeText(
+                                        context,
+                                        "Parcela registrada no Firebase!",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                     showAlertaFinanceiroEtapa2 = false
                                     parcelaSelecionadaFinanceira = null
                                     catequistaResponsavelInput = ""
                                     crismandoSelecionado = null
+                                },
+                                onError = { erro ->
+                                    Toast.makeText(
+                                        context,
+                                        erro.message ?: "Erro ao registrar a parcela.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
                                 }
+                            )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                         shape = RoundedCornerShape(4.dp)
