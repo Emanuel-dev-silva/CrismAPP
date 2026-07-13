@@ -1,7 +1,6 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
-import java.util.TimeZone
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -46,6 +45,7 @@ import kotlinx.coroutines.delay
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.TimeZone
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
@@ -63,9 +63,7 @@ private fun converterDataFirebaseParaMillis(valor: Any?): Long {
 }
 
 private fun formatarDataPagamento(dataEmMillis: Long): String {
-    if (dataEmMillis <= 0L) {
-        return ""
-    }
+    if (dataEmMillis <= 0L) return ""
 
     val formato = SimpleDateFormat(
         "dd/MM/yyyy",
@@ -92,10 +90,16 @@ data class DocumentoItem(
     val status: StatusDocumento
 )
 
+private fun RegistroDocumento.ehDocumentoDoPadrinho(): Boolean {
+    return id.contains("-PADRINHO-", ignoreCase = true) ||
+            nome.contains("Padrinho", ignoreCase = true)
+}
+
 data class AvisoItem(
     val id: String,
     val text: String,
     val turmaId: String,
+    val tipo: String = "TURMA",
     val linkUrl: String? = null,
     val dataCriacao: Long = 0L
 )
@@ -414,15 +418,23 @@ fun CrismandoScreen(navController: NavController) {
                                 tipo = documento.getString("tipo").orEmpty(),
                                 status = documento.getString("status")
                                     ?: StatusDocumento.NAO_ENTREGUE.name,
-                                dataAtualizacao = documento.getLong("dataAtualizacao") ?: 0L
+                                dataAtualizacao = converterDataFirebaseParaMillis(
+                                    documento.get("dataAtualizacao")
+                                )
                             )
                         }
-                        .filter { registro ->
-                            registro.turmaId.isBlank() || registro.turmaId == turmaId
-                        }
-                        .sortedBy { registro ->
-                            registro.nome.ifBlank { registro.tipo }
-                        }
+                        /*
+                         * A matrícula identifica o crismando de forma única.
+                         * Por isso, não filtramos pelo turmaId aqui. Assim os
+                         * documentos continuam visíveis mesmo após transferência.
+                         */
+                        .sortedWith(
+                            compareBy<RegistroDocumento> {
+                                if (it.ehDocumentoDoPadrinho()) 1 else 0
+                            }.thenBy {
+                                it.nome.ifBlank { it.tipo }
+                            }
+                        )
                 }
 
             onDispose {
@@ -432,12 +444,12 @@ fun CrismandoScreen(navController: NavController) {
     }
 
     // =========================================================
-    // 7. AVISOS DA TURMA
+    // 7. AVISOS VISÍVEIS PARA O CRISMANDO
     //
-    // Durante a transição, o app aceita:
-    // - o ID real da turma;
-    // - "turma_jovem" ou "turma_adulta" (formato antigo);
-    // - "geral" para avisos destinados a todos.
+    // O crismando recebe:
+    // - avisos gerais;
+    // - avisos destinados à categoria da sua turma;
+    // - avisos destinados especificamente à sua turma.
     // =========================================================
 
     DisposableEffect(turmaId, categoriaTurma) {
@@ -448,9 +460,26 @@ fun CrismandoScreen(navController: NavController) {
         } else {
             carregandoAvisos = true
 
-            val turmaLegada = when (categoriaTurma) {
+            val categoriaNormalizada = categoriaTurma
+                .trim()
+                .lowercase(Locale.ROOT)
+
+            val destinoCategoria = when (
+                categoriaNormalizada
+            ) {
+                "jovem" -> "CATEGORIA_JOVEM"
+                "adulta", "adulto" ->
+                    "CATEGORIA_ADULTA"
+                else -> ""
+            }
+
+            // Compatibilidade com avisos antigos.
+            val destinoLegado = when (
+                categoriaNormalizada
+            ) {
                 "jovem" -> "turma_jovem"
-                "adulta", "adulto" -> "turma_adulta"
+                "adulta", "adulto" ->
+                    "turma_adulta"
                 else -> ""
             }
 
@@ -465,31 +494,68 @@ fun CrismandoScreen(navController: NavController) {
 
                     listaAvisosFirebase = snapshot.documents
                         .mapNotNull { documento ->
-                            val texto = documento.getString("texto").orEmpty().trim()
-                            val avisoTurmaId = documento.getString("turmaId")
+                            val texto = documento
+                                .getString("texto")
+                                .orEmpty()
+                                .trim()
+
+                            val avisoTurmaId = documento
+                                .getString("turmaId")
                                 .orEmpty()
                                 .trim()
 
                             val pertenceAoCrismando =
                                 avisoTurmaId == turmaId ||
-                                        (turmaLegada.isNotBlank() && avisoTurmaId == turmaLegada) ||
-                                        avisoTurmaId.equals("geral", ignoreCase = true) ||
+                                        avisoTurmaId.equals(
+                                            "GERAL",
+                                            ignoreCase = true
+                                        ) ||
+                                        (
+                                                destinoCategoria
+                                                    .isNotBlank() &&
+                                                        avisoTurmaId.equals(
+                                                            destinoCategoria,
+                                                            ignoreCase = true
+                                                        )
+                                                ) ||
+                                        (
+                                                destinoLegado
+                                                    .isNotBlank() &&
+                                                        avisoTurmaId.equals(
+                                                            destinoLegado,
+                                                            ignoreCase = true
+                                                        )
+                                                ) ||
                                         avisoTurmaId.isBlank()
 
-                            if (texto.isBlank() || !pertenceAoCrismando) {
+                            if (
+                                texto.isBlank() ||
+                                !pertenceAoCrismando
+                            ) {
                                 null
                             } else {
                                 AvisoItem(
                                     id = documento.id,
                                     text = texto,
-                                    turmaId = avisoTurmaId.ifBlank { "geral" },
-                                    linkUrl = documento.getString("linkUrl")
-                                        ?.takeIf { it.isNotBlank() },
-                                    dataCriacao = documento.getLong("dataCriacao") ?: 0L
+                                    turmaId = avisoTurmaId
+                                        .ifBlank { "GERAL" },
+                                    tipo = documento
+                                        .getString("tipo")
+                                        ?: "TURMA",
+                                    linkUrl = documento
+                                        .getString("linkUrl")
+                                        ?.takeIf {
+                                            it.isNotBlank()
+                                        },
+                                    dataCriacao = documento
+                                        .getLong("dataCriacao")
+                                        ?: 0L
                                 )
                             }
                         }
-                        .sortedByDescending { it.dataCriacao }
+                        .sortedByDescending {
+                            it.dataCriacao
+                        }
                 }
 
             onDispose {
@@ -519,6 +585,53 @@ fun CrismandoScreen(navController: NavController) {
         .map { it.obterNumeroParcela() }
         .filter { it in 1..TOTAL_PARCELAS_CARNE }
         .toSet()
+
+    val documentosDoCrismando = listaDocumentosFirebase
+        .filterNot { it.ehDocumentoDoPadrinho() }
+
+    val documentosDoPadrinho = listaDocumentosFirebase
+        .filter { it.ehDocumentoDoPadrinho() }
+
+    /*
+     * NAO_POSSUI significa que aquele comprovante não é necessário,
+     * como no caso de uma pessoa não casada. Portanto, ele não deixa
+     * o indicador pendente.
+     */
+    val totalDocumentosEntregues = listaDocumentosFirebase.count {
+        it.obterStatus() == StatusDocumento.ENTREGUE
+    }
+
+    val possuiDocumentoPendente = listaDocumentosFirebase.any {
+        it.obterStatus() == StatusDocumento.NAO_ENTREGUE
+    }
+
+    val crismandoFoiCadastrado = documentosDoCrismando.isNotEmpty()
+    val padrinhoFoiCadastrado = documentosDoPadrinho.isNotEmpty()
+
+    val todosDocumentosNecessariosEntregues =
+        crismandoFoiCadastrado &&
+                padrinhoFoiCadastrado &&
+                !possuiDocumentoPendente
+
+    val corLedDocumentos = when {
+        carregandoDocumentos -> Color.Gray
+
+        // Nenhum comprovante entregue, ou documentação ainda não cadastrada.
+        totalDocumentosEntregues == 0 -> Color(0xFFE53935)
+
+        // As duas abas foram cadastradas e não existe documento obrigatório pendente.
+        todosDocumentosNecessariosEntregues -> Color(0xFF4CAF50)
+
+        // Pelo menos um foi entregue, mas ainda falta algo.
+        else -> Color(0xFFFFB300)
+    }
+
+    val textoResumoDocumentos = when {
+        carregandoDocumentos -> "Carregando documentos..."
+        todosDocumentosNecessariosEntregues -> "Documentação completa"
+        totalDocumentosEntregues == 0 -> "Nenhum documento entregue"
+        else -> "$totalDocumentosEntregues documento(s) entregue(s)"
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -656,7 +769,7 @@ fun CrismandoScreen(navController: NavController) {
                                 modifier = Modifier
                                     .size(8.dp)
                                     .background(
-                                        color = Color(0xFFFFB300),
+                                        color = corLedDocumentos,
                                         shape = RoundedCornerShape(50)
                                     )
                             )
@@ -888,7 +1001,7 @@ fun CrismandoScreen(navController: NavController) {
         val uriHandler = LocalUriHandler.current
 
         CustomPopup(
-            title = "Avisos da sua turma: ${listaAvisosFirebase.size}",
+            title = "Avisos: ${listaAvisosFirebase.size}",
             onDismiss = { showAvisosPopup = false }
         ) {
             when {
@@ -901,7 +1014,7 @@ fun CrismandoScreen(navController: NavController) {
                 listaAvisosFirebase.isEmpty() -> {
                     item {
                         PopupEmptyItem(
-                            text = "Nenhum aviso publicado para sua turma no momento."
+                            text = "Nenhum aviso publicado no momento."
                         )
                     }
                 }
@@ -977,7 +1090,7 @@ fun CrismandoScreen(navController: NavController) {
 
     if (showDocumentosPopup) {
         CustomPopup(
-            title = "Situação dos documentos:",
+            title = "Documentos: $textoResumoDocumentos",
             onDismiss = { showDocumentosPopup = false }
         ) {
             when {
@@ -996,28 +1109,48 @@ fun CrismandoScreen(navController: NavController) {
                 }
 
                 else -> {
-                    items(
-                        items = listaDocumentosFirebase,
-                        key = { it.id }
-                    ) { registro ->
-                        val nomeDocumento = registro.nome
-                            .ifBlank { registro.tipo }
-                            .ifBlank { "Documento" }
-
-                        val status = registro.obterStatus()
-
-                        val textoStatus = when (status) {
-                            StatusDocumento.ENTREGUE -> "Entregue"
-                            StatusDocumento.NAO_ENTREGUE -> "Não entregue"
-                            StatusDocumento.NAO_POSSUI -> "Não possui"
-                        }
-
-                        DocumentoCard(
-                            item = DocumentoItem(
-                                title = "$nomeDocumento: $textoStatus",
-                                status = status
-                            )
+                    item {
+                        DocumentoGrupoTitulo(
+                            titulo = "Crismando",
+                            cadastrado = crismandoFoiCadastrado
                         )
+                    }
+
+                    if (documentosDoCrismando.isEmpty()) {
+                        item {
+                            PopupEmptyItem(
+                                text = "A documentação do crismando ainda não foi cadastrada."
+                            )
+                        }
+                    } else {
+                        items(
+                            items = documentosDoCrismando,
+                            key = { it.id }
+                        ) { registro ->
+                            DocumentoRegistroCard(registro)
+                        }
+                    }
+
+                    item {
+                        DocumentoGrupoTitulo(
+                            titulo = "Padrinho",
+                            cadastrado = padrinhoFoiCadastrado
+                        )
+                    }
+
+                    if (documentosDoPadrinho.isEmpty()) {
+                        item {
+                            PopupEmptyItem(
+                                text = "A documentação do padrinho ainda não foi cadastrada."
+                            )
+                        }
+                    } else {
+                        items(
+                            items = documentosDoPadrinho,
+                            key = { it.id }
+                        ) { registro ->
+                            DocumentoRegistroCard(registro)
+                        }
                     }
                 }
             }
@@ -1120,6 +1253,57 @@ private fun CarneCard(item: CarneItem) {
 }
 
 @Composable
+private fun DocumentoGrupoTitulo(
+    titulo: String,
+    cadastrado: Boolean
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = titulo,
+            color = Color.Black,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = customFont,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = if (cadastrado) "Cadastrado" else "Pendente",
+            color = if (cadastrado) Color(0xFF2E7D32) else Color(0xFFE53935),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun DocumentoRegistroCard(registro: RegistroDocumento) {
+    val nomeDocumento = registro.nome
+        .ifBlank { registro.tipo }
+        .ifBlank { "Documento" }
+
+    val status = registro.obterStatus()
+
+    val textoStatus = when (status) {
+        StatusDocumento.ENTREGUE -> "Entregue"
+        StatusDocumento.NAO_ENTREGUE -> "Não entregue"
+        StatusDocumento.NAO_POSSUI -> "Não necessário"
+    }
+
+    DocumentoCard(
+        item = DocumentoItem(
+            title = "$nomeDocumento: $textoStatus",
+            status = status
+        )
+    )
+}
+
+@Composable
 private fun DocumentoCard(item: DocumentoItem) {
     val statusIcon = when (item.status) {
         StatusDocumento.ENTREGUE -> Icons.Outlined.CheckCircle
@@ -1172,18 +1356,55 @@ fun AvisoCardComponent(
 ) {
     val isLink = item.linkUrl != null
 
-    val tagTurma = when (item.turmaId.lowercase(Locale.ROOT)) {
-        "turma_jovem" -> "JOVEM"
-        "turma_adulta" -> "ADULTO"
-        "geral", "" -> "GERAL"
+    val destino = item.turmaId
+        .trim()
+        .uppercase(Locale.ROOT)
+
+    val tagTurma = when {
+        destino == "GERAL" || destino.isBlank() ->
+            "AVISO GERAL"
+
+        destino == "CATEGORIA_JOVEM" ||
+                destino == "TURMA_JOVEM" ->
+            "TURMAS JOVENS"
+
+        destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_ADULTA" ->
+            "TURMAS ADULTAS"
+
         else -> "SUA TURMA"
     }
 
-    val tagColor = when (item.turmaId.lowercase(Locale.ROOT)) {
-        "turma_jovem" -> Color(0xFF0288D1)
-        "turma_adulta" -> Color(0xFFE65100)
-        "geral", "" -> Color.Gray
+    val tagColor = when {
+        destino == "GERAL" || destino.isBlank() ->
+            Crisma_Gold
+
+        destino == "CATEGORIA_JOVEM" ||
+                destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_JOVEM" ||
+                destino == "TURMA_ADULTA" ->
+            Color(0xFF1976D2)
+
         else -> Crisma_Primary
+    }
+
+    val tagTextColor = if (tagColor == Crisma_Gold) {
+        Color.Black
+    } else {
+        Color.White
+    }
+
+    val cardBackground = when {
+        destino == "GERAL" || destino.isBlank() ->
+            Color(0xFFFFF8D1)
+
+        destino == "CATEGORIA_JOVEM" ||
+                destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_JOVEM" ||
+                destino == "TURMA_ADULTA" ->
+            Color(0xFFE3F2FD)
+
+        else -> Color(0xFFFFEBEE)
     }
 
     Card(
@@ -1201,20 +1422,12 @@ fun AvisoCardComponent(
                 }
             ),
         colors = CardDefaults.cardColors(
-            containerColor = if (isLink) {
-                Color(0xFFE8F5E9)
-            } else {
-                Color.White
-            }
+            containerColor = cardBackground
         ),
         shape = RoundedCornerShape(8.dp),
         border = BorderStroke(
             width = 1.dp,
-            color = if (isLink) {
-                Color(0xFF81C784)
-            } else {
-                Color(0xFFEEEEEE)
-            }
+            color = tagColor
         )
     ) {
         Column(
@@ -1228,17 +1441,20 @@ fun AvisoCardComponent(
                         color = tagColor,
                         shape = RoundedCornerShape(4.dp)
                     )
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                    .padding(
+                        horizontal = 7.dp,
+                        vertical = 3.dp
+                    )
             ) {
                 Text(
                     text = tagTurma,
-                    color = Color.White,
+                    color = tagTextColor,
                     fontSize = 9.sp,
                     fontWeight = FontWeight.Black
                 )
             }
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(7.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1248,14 +1464,10 @@ fun AvisoCardComponent(
                     imageVector = if (isLink) {
                         Icons.Outlined.Link
                     } else {
-                        Icons.Outlined.Label
+                        Icons.Outlined.Notifications
                     },
                     contentDescription = null,
-                    tint = if (isLink) {
-                        Color(0xFF2E7D32)
-                    } else {
-                        Crisma_Primary
-                    },
+                    tint = tagColor,
                     modifier = Modifier.size(20.dp)
                 )
 
@@ -1263,11 +1475,7 @@ fun AvisoCardComponent(
 
                 Text(
                     text = item.text,
-                    color = if (isLink) {
-                        Color(0xFF1B5E20)
-                    } else {
-                        Color.Black
-                    },
+                    color = Color.Black,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     fontFamily = customFont

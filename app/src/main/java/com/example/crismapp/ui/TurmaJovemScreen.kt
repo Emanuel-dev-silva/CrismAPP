@@ -56,6 +56,13 @@ data class ParcelaFinanceira(
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
 private val Light_Gray_Darker = Color(0xFFE0E0E0)
+private val Aviso_Blue = Color(0xFF1976D2)
+
+private enum class DestinoAvisoJovem {
+    GERAL,
+    CATEGORIA,
+    TURMA
+}
 
 class MascaraDataTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
@@ -107,6 +114,15 @@ fun TurmaJovemScreen(navController: NavController) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
+    val catequistaLogado = FirebaseAuthRepository.catequistaAtual
+    val possuiPermissaoTotal =
+        catequistaLogado?.possuiPermissaoTotal() == true
+
+    val nomeCatequistaLogado = catequistaLogado
+        ?.nome
+        .orEmpty()
+        .ifBlank { "Catequista" }
+
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
     var showDadosPopup by remember { mutableStateOf(false) }
@@ -114,6 +130,20 @@ fun TurmaJovemScreen(navController: NavController) {
     var showFinanceiroPopup by remember { mutableStateOf(false) }
     var showFrequenciaPopup by remember { mutableStateOf(false) }
     var showTurmasPopup by remember { mutableStateOf(false) }
+    var showDocumentosDialog by remember { mutableStateOf(false) }
+
+    var crismandoDocumentosSelecionado by remember { mutableStateOf<Crismando?>(null) }
+    var abaDocumentosSelecionada by remember { mutableStateOf(PerfilDocumentacao.CRISMANDO) }
+    var cadastroDocumentosCrismando by remember { mutableStateOf(CadastroDocumentacao()) }
+    var cadastroDocumentosPadrinho by remember {
+        mutableStateOf(CadastroDocumentacao(perfil = PerfilDocumentacao.PADRINHO.name))
+    }
+    var carregandoDocumentosCadastro by remember { mutableStateOf(false) }
+    var responsavelDocumentosInput by remember { mutableStateOf("") }
+
+    var crismandoParaArquivar by remember { mutableStateOf<Crismando?>(null) }
+    var motivoArquivamentoInput by remember { mutableStateOf("") }
+    var responsavelArquivamentoInput by remember { mutableStateOf("") }
 
     var idTurmaSelecionada by remember { mutableStateOf<String?>(null) }
     var nomeTurmaSelecionada by remember { mutableStateOf<String?>(null) }
@@ -161,6 +191,7 @@ fun TurmaJovemScreen(navController: NavController) {
     val frequenciaPorEncontro = remember { mutableStateMapOf<String, StatusFrequencia>() }
 
     var novoAvisoTexto by remember { mutableStateOf("") }
+    var destinoAvisoSelecionado by remember { mutableStateOf<DestinoAvisoJovem?>(null) }
     var listaAvisosAtivos by remember { mutableStateOf(listOf<Aviso>()) }
     var listaTurmasFirestore by remember { mutableStateOf(listOf<Turma>()) }
     var listaCrismandosFirestore by remember { mutableStateOf(listOf<Crismando>()) }
@@ -176,6 +207,17 @@ fun TurmaJovemScreen(navController: NavController) {
     var animarBotoesAcao by remember { mutableStateOf(false) }
 
     val visualTransformationData = remember { MascaraDataTransformation() }
+
+    LaunchedEffect(possuiPermissaoTotal) {
+        if (!possuiPermissaoTotal) {
+            showTurmasPopup = false
+            showDocumentosDialog = false
+            crismandoDocumentosSelecionado = null
+            crismandoParaArquivar = null
+            idTurmaParaExcluir = null
+            nomeTurmaParaExcluir = ""
+        }
+    }
 
     LaunchedEffect(Unit) {
         val window = (view.context as Activity).window
@@ -195,7 +237,7 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     LaunchedEffect(idTurmaParaExcluir) {
-        if (idTurmaParaExcluir != null) {
+        if (idTurmaParaExcluir != null && possuiPermissaoTotal) {
             liberarBotoesConfirmacaoExcluirTurma = false
             delay(2000)
             liberarBotoesConfirmacaoExcluirTurma = true
@@ -387,17 +429,81 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    // 3. Ouvinte reativo dos avisos da turma selecionada
-    DisposableEffect(idTurmaSelecionada) {
-        val turmaId = idTurmaSelecionada
+    LaunchedEffect(crismandoDocumentosSelecionado?.id) {
+        val crismando = crismandoDocumentosSelecionado
+        if (crismando == null) {
+            cadastroDocumentosCrismando = CadastroDocumentacao()
+            cadastroDocumentosPadrinho = CadastroDocumentacao(perfil = PerfilDocumentacao.PADRINHO.name)
+            carregandoDocumentosCadastro = false
+            return@LaunchedEffect
+        }
 
-        if (turmaId == null) {
+        carregandoDocumentosCadastro = true
+        var concluidos = 0
+        fun concluir() {
+            concluidos += 1
+            if (concluidos >= 2) carregandoDocumentosCadastro = false
+        }
+
+        FirebaseRepository.carregarCadastroDocumentacao(
+            alunoId = crismando.id,
+            perfil = PerfilDocumentacao.CRISMANDO,
+            onSuccess = { cadastro ->
+                cadastroDocumentosCrismando = cadastro.copy(
+                    alunoId = crismando.id,
+                    turmaId = cadastro.turmaId.ifBlank { crismando.turmaId },
+                    perfil = PerfilDocumentacao.CRISMANDO.name
+                )
+                concluir()
+            },
+            onError = { erro ->
+                Toast.makeText(context, erro.message ?: "Erro ao carregar documentos do crismando.", Toast.LENGTH_SHORT).show()
+                concluir()
+            }
+        )
+
+        FirebaseRepository.carregarCadastroDocumentacao(
+            alunoId = crismando.id,
+            perfil = PerfilDocumentacao.PADRINHO,
+            onSuccess = { cadastro ->
+                cadastroDocumentosPadrinho = cadastro.copy(
+                    alunoId = crismando.id,
+                    turmaId = cadastro.turmaId.ifBlank { crismando.turmaId },
+                    perfil = PerfilDocumentacao.PADRINHO.name
+                )
+                concluir()
+            },
+            onError = { erro ->
+                Toast.makeText(context, erro.message ?: "Erro ao carregar documentos do padrinho.", Toast.LENGTH_SHORT).show()
+                concluir()
+            }
+        )
+    }
+
+    // 3. Ouvinte reativo dos avisos do destino selecionado
+    DisposableEffect(
+        destinoAvisoSelecionado,
+        idTurmaSelecionada,
+        possuiPermissaoTotal
+    ) {
+        val destinoId = when {
+            !possuiPermissaoTotal &&
+                destinoAvisoSelecionado != DestinoAvisoJovem.TURMA -> null
+
+            else -> when (destinoAvisoSelecionado) {
+                DestinoAvisoJovem.GERAL -> "GERAL"
+                DestinoAvisoJovem.CATEGORIA -> "CATEGORIA_JOVEM"
+                DestinoAvisoJovem.TURMA -> idTurmaSelecionada
+                null -> null
+            }
+        }
+
+        if (destinoId.isNullOrBlank()) {
             listaAvisosAtivos = emptyList()
             onDispose { }
         } else {
-            val listener = FirebaseRepository.ouvirAvisosDaTurma(
-                turmaId = turmaId,
-                categoria = "jovem",
+            val listener = FirebaseRepository.ouvirAvisosPorDestino(
+                destinoId = destinoId,
                 onUpdate = { avisos ->
                     listaAvisosAtivos = avisos
                 },
@@ -498,45 +604,170 @@ fun TurmaJovemScreen(navController: NavController) {
                 }
             }
 
-            Box(modifier = Modifier.fillMaxWidth().weight(0.35f).background(Color.White), contentAlignment = Alignment.TopCenter) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(0.35f)
+                    .background(Color.White),
+                contentAlignment = Alignment.TopCenter
+            ) {
                 if (animarBotoesAcao) {
-                    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SmallMenuCardJovem(title = "Frequência", icon = Icons.Outlined.CheckCircle, modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp)
+                    ) {
+                        if (possuiPermissaoTotal) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                            SmallMenuCardJovem(
+                                title = "Frequência",
+                                icon = Icons.Outlined.CheckCircle,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 idTurmaSelecionada = null
                                 encontroSelecionado = null
                                 modoEdicaoFrequencia = false
                                 showFrequenciaPopup = true
                             }
-                            SmallMenuCardJovem(title = "Turmas", icon = Icons.Outlined.Groups, modifier = Modifier.weight(1f)) {
+                            SmallMenuCardJovem(
+                                title = "Turmas",
+                                icon = Icons.Outlined.Groups,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 idTurmaSelecionada = null
                                 nomeTurmaSelecionada = null
                                 modoCriarTurma = false
                                 showTurmasPopup = true
                             }
-                            SmallMenuCardJovem(title = "Avisos", icon = Icons.Outlined.Notifications, modifier = Modifier.weight(1f)) {
+                            SmallMenuCardJovem(
+                                title = "Avisos",
+                                icon = Icons.Outlined.Notifications,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                destinoAvisoSelecionado = null
                                 idTurmaSelecionada = null
                                 nomeTurmaSelecionada = null
+                                novoAvisoTexto = ""
                                 listaAvisosAtivos = emptyList()
                                 showAvisosPopup = true
                             }
-                        }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SmallMenuCardJovem(title = "Financeiro", icon = Icons.Outlined.Payments, modifier = Modifier.weight(1f)) {
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                            SmallMenuCardJovem(
+                                title = "Financeiro",
+                                icon = Icons.Outlined.Payments,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 idTurmaSelecionada = null
                                 crismandoSelecionado = null
                                 parcelaSelecionadaFinanceira = null
-                                catequistaResponsavelInput = ""
+                                catequistaResponsavelInput =
+                                    nomeCatequistaLogado
                                 showFinanceiroPopup = true
                             }
-                            SmallMenuCardJovem(title = "Dados", icon = Icons.Outlined.BarChart, modifier = Modifier.weight(1f)) {
+                            SmallMenuCardJovem(
+                                title = "Dados",
+                                icon = Icons.Outlined.BarChart,
+                                modifier = Modifier.weight(1f)
+                            ) {
                                 idTurmaSelecionada = null
                                 exibirPorcentagemFalta = false
                                 showDadosPopup = true
                             }
-                            SmallMenuCardJovem(title = "Voltar", icon = Icons.Outlined.ArrowBack, modifier = Modifier.weight(1f)) {
-                                navController.navigate("catequistaOptions") { popUpTo("turmaJovemScreen") { inclusive = true } }
+                            SmallMenuCardJovem(
+                                title = "Voltar",
+                                icon = Icons.Outlined.ArrowBack,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                navController.navigate("catequistaOptions") {
+                                    popUpTo("turmaJovemScreen") {
+                                        inclusive = true
+                                    }
+                                }
+                            }
+                            }
+                        } else {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                            SmallMenuCardJovem(
+                                title = "Frequência",
+                                icon = Icons.Outlined.CheckCircle,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                idTurmaSelecionada = null
+                                encontroSelecionado = null
+                                modoEdicaoFrequencia = false
+                                showFrequenciaPopup = true
+                            }
+                            SmallMenuCardJovem(
+                                title = "Avisos",
+                                icon = Icons.Outlined.Notifications,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                destinoAvisoSelecionado =
+                                    DestinoAvisoJovem.TURMA
+                                idTurmaSelecionada = null
+                                nomeTurmaSelecionada = null
+                                novoAvisoTexto = ""
+                                listaAvisosAtivos = emptyList()
+                                showAvisosPopup = true
+                            }
+                            SmallMenuCardJovem(
+                                title = "Financeiro",
+                                icon = Icons.Outlined.Payments,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                idTurmaSelecionada = null
+                                crismandoSelecionado = null
+                                parcelaSelecionadaFinanceira = null
+                                catequistaResponsavelInput =
+                                    nomeCatequistaLogado
+                                showFinanceiroPopup = true
+                            }
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp)
+                            ) {
+                            SmallMenuCardJovem(
+                                title = "Dados",
+                                icon = Icons.Outlined.BarChart,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                idTurmaSelecionada = null
+                                exibirPorcentagemFalta = false
+                                showDadosPopup = true
+                            }
+                            SmallMenuCardJovem(
+                                title = "Voltar",
+                                icon = Icons.Outlined.ArrowBack,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                navController.navigate("catequistaOptions") {
+                                    popUpTo("turmaJovemScreen") {
+                                        inclusive = true
+                                    }
+                                }
+                            }
+                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -545,7 +776,7 @@ fun TurmaJovemScreen(navController: NavController) {
         }
     }
 
-    if (showTurmasPopup) {
+    if (showTurmasPopup && possuiPermissaoTotal) {
         val titTurma = when {
             modoCriarTurma -> "Nova Turma"
             idTurmaSelecionada != null -> "Editar: $nomeTurmaSelecionada"
@@ -657,28 +888,21 @@ fun TurmaJovemScreen(navController: NavController) {
                                 Text(crismando.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Text("Matrícula: ${crismando.id}", fontSize = 11.sp, color = Color.Gray)
                             }
-                            IconButton(
-                                onClick = {
-                                    FirebaseRepository.excluirCrismandoDefinitivamente(
-                                        matricula = crismando.id,
-                                        onSuccess = {
-                                            Toast.makeText(
-                                                context,
-                                                "Crismando e dados relacionados excluídos.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        },
-                                        onError = { erro ->
-                                            Toast.makeText(
-                                                context,
-                                                erro.message ?: "Erro ao excluir o crismando.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    )
-                                }
-                            ) {
-                                Icon(Icons.Outlined.Delete, null, tint = Color.Red.copy(0.6f))
+                            IconButton(onClick = {
+                                crismandoDocumentosSelecionado = crismando
+                                abaDocumentosSelecionada = PerfilDocumentacao.CRISMANDO
+                                responsavelDocumentosInput = ""
+                                showDocumentosDialog = true
+                            }) {
+                                Icon(Icons.Outlined.Description, "Documentos", tint = Crisma_Primary)
+                            }
+
+                            IconButton(onClick = {
+                                crismandoParaArquivar = crismando
+                                motivoArquivamentoInput = ""
+                                responsavelArquivamentoInput = ""
+                            }) {
+                                Icon(Icons.Outlined.Archive, "Arquivar", tint = Color.Red.copy(alpha = 0.65f))
                             }
                         }
                     }
@@ -1130,16 +1354,17 @@ fun TurmaJovemScreen(navController: NavController) {
                         Text("Crismando: $alunoNomeFixo", color = Color.Gray)
                         Spacer(modifier = Modifier.height(12.dp))
                         OutlinedTextField(
-                            value = catequistaResponsavelInput,
-                            onValueChange = { catequistaResponsavelInput = it },
-                            label = { Text("Catequista Responsável") },
+                            value = nomeCatequistaLogado,
+                            onValueChange = {},
+                            label = { Text("Recebido por") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            readOnly = true
                         )
                         Spacer(modifier = Modifier.height(16.dp))
                         Button(
                             onClick = { showAlertaFinanceiroEtapa1 = true },
-                            enabled = catequistaResponsavelInput.isNotBlank(),
+                            enabled = nomeCatequistaLogado.isNotBlank(),
                             modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
                             shape = RoundedCornerShape(4.dp)
@@ -1280,165 +1505,454 @@ fun TurmaJovemScreen(navController: NavController) {
     }
 
     if (showAvisosPopup) {
-        val tituloAvisos = if (idTurmaSelecionada == null) {
-            "Avisos Jovens - Selecione a Turma"
-        } else {
-            "Avisos: $nomeTurmaSelecionada"
+        val destinoAtual = destinoAvisoSelecionado
+
+        val tituloAvisos = when {
+            destinoAtual == null -> "Escolha o tipo de aviso"
+            destinoAtual == DestinoAvisoJovem.GERAL -> "Aviso Geral"
+            destinoAtual == DestinoAvisoJovem.CATEGORIA ->
+                "Todas as turmas jovens"
+            idTurmaSelecionada == null ->
+                "Sua turma - selecione a turma"
+            else -> "Avisos: $nomeTurmaSelecionada"
         }
 
         CustomPopupJovem(
             title = tituloAvisos,
             onDismiss = {
                 showAvisosPopup = false
+                destinoAvisoSelecionado = null
                 idTurmaSelecionada = null
                 nomeTurmaSelecionada = null
                 novoAvisoTexto = ""
                 listaAvisosAtivos = emptyList()
             }
         ) {
-            if (idTurmaSelecionada == null) {
-                items(listaTurmasFirestore) { turma ->
-                    Card(
-                        onClick = {
-                            idTurmaSelecionada = turma.id
-                            nomeTurmaSelecionada = turma.nome
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFF9F9F9)
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
+            when {
+                destinoAtual == null -> {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Text(
-                                text = turma.nome,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.Black,
-                                modifier = Modifier.weight(1f)
-                            )
+                            if (possuiPermissaoTotal) {
+                                BotaoDestinoAvisoJovem(
+                                    titulo = "Aviso Geral",
+                                    descricao = "Será mostrado para todas as turmas jovens e adultas.",
+                                    cor = Crisma_Gold,
+                                    corTexto = Color.Black
+                                ) {
+                                    destinoAvisoSelecionado =
+                                        DestinoAvisoJovem.GERAL
+                                }
 
+                                BotaoDestinoAvisoJovem(
+                                    titulo = "Turmas Jovens",
+                                    descricao = "Será mostrado para todas as turmas jovens.",
+                                    cor = Aviso_Blue,
+                                    corTexto = Color.White
+                                ) {
+                                    destinoAvisoSelecionado =
+                                        DestinoAvisoJovem.CATEGORIA
+                                }
+                            }
+
+                            BotaoDestinoAvisoJovem(
+                                titulo = "Sua Turma",
+                                descricao = "Será mostrado somente para uma turma específica.",
+                                cor = Crisma_Primary,
+                                corTexto = Color.White
+                            ) {
+                                destinoAvisoSelecionado =
+                                    DestinoAvisoJovem.TURMA
+                            }
+                        }
+                    }
+                }
+
+                destinoAtual == DestinoAvisoJovem.TURMA &&
+                        idTurmaSelecionada == null -> {
+
+                    item {
+                        TextButton(
+                            onClick = {
+                                if (possuiPermissaoTotal) {
+                                    destinoAvisoSelecionado = null
+                                    listaAvisosAtivos = emptyList()
+                                } else {
+                                    showAvisosPopup = false
+                                    destinoAvisoSelecionado = null
+                                    idTurmaSelecionada = null
+                                    nomeTurmaSelecionada = null
+                                }
+                            }
+                        ) {
                             Icon(
-                                imageVector = Icons.Outlined.ArrowForwardIos,
-                                contentDescription = null,
-                                modifier = Modifier.size(14.dp),
+                                Icons.Outlined.ArrowBack,
+                                null,
+                                modifier = Modifier.size(16.dp),
                                 tint = Crisma_Primary
                             )
+                            Text(
+                                text = if (possuiPermissaoTotal) {
+                                    " Voltar aos tipos de aviso"
+                                } else {
+                                    " Fechar"
+                                },
+                                color = Crisma_Primary
+                            )
                         }
                     }
-                }
-            } else {
-                item {
-                    TextButton(
-                        onClick = {
-                            idTurmaSelecionada = null
-                            nomeTurmaSelecionada = null
-                            novoAvisoTexto = ""
-                            listaAvisosAtivos = emptyList()
-                        }
-                    ) {
-                        Icon(
-                            Icons.Outlined.ArrowBack,
-                            null,
-                            modifier = Modifier.size(16.dp),
-                            tint = Crisma_Primary
-                        )
-                        Text(" Voltar para Turmas", color = Crisma_Primary)
-                    }
 
-                    OutlinedTextField(
-                        value = novoAvisoTexto,
-                        onValueChange = { novoAvisoTexto = it },
-                        placeholder = { Text("Novo aviso...") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    items(listaTurmasFirestore) { turma ->
+                        Card(
+                            onClick = {
+                                idTurmaSelecionada = turma.id
+                                nomeTurmaSelecionada = turma.nome
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFF7F7)
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = Crisma_Primary
+                            ),
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = turma.nome,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    modifier = Modifier.weight(1f)
+                                )
 
-                    Button(
-                        onClick = {
-                            if (novoAvisoTexto.isNotBlank()) {
-                                FirebaseRepository.criarAviso(
-                                    turmaId = idTurmaSelecionada!!,
-                                    texto = novoAvisoTexto,
-                                    tipo = "gerais",
-                                    onSuccess = {
-                                        Toast.makeText(
-                                            context,
-                                            "Aviso publicado para $nomeTurmaSelecionada!",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                        novoAvisoTexto = ""
-                                    },
-                                    onError = { erro ->
-                                        Toast.makeText(
-                                            context,
-                                            erro.message ?: "Erro ao publicar o aviso.",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+                                Icon(
+                                    imageVector = Icons.Outlined.ArrowForwardIos,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(14.dp),
+                                    tint = Crisma_Primary
                                 )
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(top = 8.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Crisma_Primary
-                        ),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Text("Publicar", fontWeight = FontWeight.Bold)
+                        }
                     }
-
-                    HorizontalDivider(
-                        modifier = Modifier.padding(vertical = 12.dp)
-                    )
                 }
 
-                items(listaAvisosAtivos) { aviso ->
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color(0xFFF9F9F9)
-                        ),
-                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                else -> {
+                    item {
+                        val corDestino = when (destinoAtual) {
+                            DestinoAvisoJovem.GERAL -> Crisma_Gold
+                            DestinoAvisoJovem.CATEGORIA -> Aviso_Blue
+                            DestinoAvisoJovem.TURMA -> Crisma_Primary
+                            null -> Crisma_Primary
+                        }
+
+                        val corTextoBotao = if (
+                            destinoAtual == DestinoAvisoJovem.GERAL
+                        ) {
+                            Color.Black
+                        } else {
+                            Color.White
+                        }
+
+                        val destinoId = when (destinoAtual) {
+                            DestinoAvisoJovem.GERAL -> "GERAL"
+                            DestinoAvisoJovem.CATEGORIA -> "CATEGORIA_JOVEM"
+                            DestinoAvisoJovem.TURMA ->
+                                idTurmaSelecionada.orEmpty()
+                            null -> ""
+                        }
+
+                        val tipoAviso = when (destinoAtual) {
+                            DestinoAvisoJovem.GERAL -> "GERAL"
+                            DestinoAvisoJovem.CATEGORIA -> "CATEGORIA"
+                            DestinoAvisoJovem.TURMA -> "TURMA"
+                            null -> "TURMA"
+                        }
+
+                        val descricaoDestino = when (destinoAtual) {
+                            DestinoAvisoJovem.GERAL ->
+                                "Todos os crismandos verão este aviso."
+
+                            DestinoAvisoJovem.CATEGORIA ->
+                                "Todas as turmas jovens verão este aviso."
+
+                            DestinoAvisoJovem.TURMA ->
+                                "Somente a turma $nomeTurmaSelecionada verá este aviso."
+
+                            null -> ""
+                        }
+
+                        TextButton(
+                            onClick = {
+                                if (possuiPermissaoTotal) {
+                                    destinoAvisoSelecionado = null
+                                } else {
+                                    destinoAvisoSelecionado =
+                                        DestinoAvisoJovem.TURMA
+                                }
+
+                                idTurmaSelecionada = null
+                                nomeTurmaSelecionada = null
+                                novoAvisoTexto = ""
+                                listaAvisosAtivos = emptyList()
+                            }
+                        ) {
+                            Icon(
+                                Icons.Outlined.ArrowBack,
+                                null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Crisma_Primary
+                            )
+                            Text(
+                                text = if (possuiPermissaoTotal) {
+                                    " Voltar aos tipos de aviso"
+                                } else {
+                                    " Voltar às turmas"
+                                },
+                                color = Crisma_Primary
+                            )
+                        }
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = corDestino.copy(
+                                    alpha = 0.12f
+                                )
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = corDestino
+                            ),
+                            shape = RoundedCornerShape(6.dp)
                         ) {
                             Text(
-                                text = aviso.texto,
-                                modifier = Modifier.weight(1f),
-                                fontSize = 14.sp,
-                                color = Color.DarkGray
+                                text = descricaoDestino,
+                                modifier = Modifier.padding(12.dp),
+                                color = Color.Black,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium
                             )
-
-                            IconButton(
-                                onClick = {
-                                    idAvisoParaExcluir = aviso.id
-                                    textoAvisoParaExcluir = aviso.texto
-                                }
-                            ) {
-                                Icon(
-                                    Icons.Outlined.Delete,
-                                    null,
-                                    tint = Color.Red.copy(alpha = 0.7f)
-                                )
-                            }
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = novoAvisoTexto,
+                            onValueChange = {
+                                novoAvisoTexto = it
+                            },
+                            placeholder = {
+                                Text("Digite o aviso...")
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+
+                        Button(
+                            onClick = {
+                                val destinoPermitido =
+                                    possuiPermissaoTotal ||
+                                        destinoAtual ==
+                                            DestinoAvisoJovem.TURMA
+
+                                if (!destinoPermitido) {
+                                    Toast.makeText(
+                                        context,
+                                        "Seu acesso permite publicar apenas para uma turma específica.",
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else if (
+                                    novoAvisoTexto.isNotBlank() &&
+                                    destinoId.isNotBlank()
+                                ) {
+                                    FirebaseRepository.criarAviso(
+                                        turmaId = destinoId,
+                                        texto = novoAvisoTexto,
+                                        tipo = tipoAviso,
+                                        onSuccess = {
+                                            Toast.makeText(
+                                                context,
+                                                "Aviso publicado com sucesso!",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                            novoAvisoTexto = ""
+                                        },
+                                        onError = { erro ->
+                                            Toast.makeText(
+                                                context,
+                                                erro.message
+                                                    ?: "Erro ao publicar o aviso.",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    )
+                                }
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = corDestino,
+                                contentColor = corTextoBotao
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = corDestino
+                            ),
+                            shape = RoundedCornerShape(4.dp)
+                        ) {
+                            Text(
+                                text = "Publicar",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(
+                                vertical = 12.dp
+                            ),
+                            color = corDestino.copy(alpha = 0.55f)
+                        )
+                    }
+
+                    items(
+                        items = listaAvisosAtivos,
+                        key = { it.id }
+                    ) { aviso ->
+                        CardAvisoAdministrativoJovem(
+                            aviso = aviso,
+                            onExcluir = {
+                                idAvisoParaExcluir = aviso.id
+                                textoAvisoParaExcluir =
+                                    aviso.texto
+                            }
+                        )
                     }
                 }
             }
         }
+    }
+
+    if (
+        showDocumentosDialog &&
+        crismandoDocumentosSelecionado != null &&
+        possuiPermissaoTotal
+    ) {
+        DocumentosJovemDialog(
+            nomeCrismando = crismandoDocumentosSelecionado!!.nome,
+            matricula = crismandoDocumentosSelecionado!!.id,
+            abaSelecionada = abaDocumentosSelecionada,
+            onAbaSelecionada = { abaDocumentosSelecionada = it },
+            cadastroCrismando = cadastroDocumentosCrismando,
+            onCadastroCrismandoChange = { cadastroDocumentosCrismando = it },
+            cadastroPadrinho = cadastroDocumentosPadrinho,
+            onCadastroPadrinhoChange = { cadastroDocumentosPadrinho = it },
+            responsavel = responsavelDocumentosInput,
+            onResponsavelChange = { responsavelDocumentosInput = it },
+            carregando = carregandoDocumentosCadastro,
+            onDismiss = {
+                showDocumentosDialog = false
+                crismandoDocumentosSelecionado = null
+                responsavelDocumentosInput = ""
+            },
+            onSalvar = {
+                val cadastro = if (abaDocumentosSelecionada == PerfilDocumentacao.CRISMANDO) {
+                    cadastroDocumentosCrismando
+                } else {
+                    cadastroDocumentosPadrinho
+                }
+
+                if (responsavelDocumentosInput.isBlank()) {
+                    Toast.makeText(context, "Informe quem atualizou os documentos.", Toast.LENGTH_SHORT).show()
+                } else {
+                    carregandoDocumentosCadastro = true
+                    FirebaseRepository.salvarCadastroDocumentacao(
+                        cadastro = cadastro.copy(
+                            alunoId = crismandoDocumentosSelecionado!!.id,
+                            turmaId = crismandoDocumentosSelecionado!!.turmaId,
+                            perfil = abaDocumentosSelecionada.name
+                        ),
+                        responsavel = responsavelDocumentosInput,
+                        onSuccess = {
+                            carregandoDocumentosCadastro = false
+                            Toast.makeText(context, "Documentos salvos!", Toast.LENGTH_SHORT).show()
+                        },
+                        onError = { erro ->
+                            carregandoDocumentosCadastro = false
+                            Toast.makeText(context, erro.message ?: "Erro ao salvar os documentos.", Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                }
+            }
+        )
+    }
+
+    if (crismandoParaArquivar != null && possuiPermissaoTotal) {
+        AlertDialog(
+            onDismissRequest = {
+                crismandoParaArquivar = null
+                motivoArquivamentoInput = ""
+                responsavelArquivamentoInput = ""
+            },
+            title = { Text("Arquivar crismando", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("${crismandoParaArquivar!!.nome} deixará de aparecer na turma, mas pagamentos, frequências e documentos serão preservados no servidor.")
+                    OutlinedTextField(
+                        value = motivoArquivamentoInput,
+                        onValueChange = { motivoArquivamentoInput = it },
+                        label = { Text("Motivo") },
+                        placeholder = { Text("Ex.: desistência") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = responsavelArquivamentoInput,
+                        onValueChange = { responsavelArquivamentoInput = it },
+                        label = { Text("Responsável") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { crismandoParaArquivar = null }) {
+                    Text("Cancelar", color = Color.Gray)
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val crismando = crismandoParaArquivar
+                        if (crismando == null || motivoArquivamentoInput.isBlank() || responsavelArquivamentoInput.isBlank()) {
+                            Toast.makeText(context, "Informe o motivo e o responsável.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            FirebaseRepository.arquivarCrismando(
+                                matricula = crismando.id,
+                                situacao = SituacaoCrismando.DESISTENTE,
+                                motivo = motivoArquivamentoInput,
+                                responsavel = responsavelArquivamentoInput,
+                                onSuccess = {
+                                    Toast.makeText(context, "Crismando arquivado. O histórico foi preservado.", Toast.LENGTH_SHORT).show()
+                                    crismandoParaArquivar = null
+                                    motivoArquivamentoInput = ""
+                                    responsavelArquivamentoInput = ""
+                                },
+                                onError = { erro ->
+                                    Toast.makeText(context, erro.message ?: "Erro ao arquivar o crismando.", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary)
+                ) { Text("Arquivar") }
+            }
+        )
     }
 
     if (showSobreNosDialog) AlertDialog(onDismissRequest = { showSobreNosDialog = false }, confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("OK", color = Crisma_Primary, fontWeight = FontWeight.Bold) } }, title = { Text("Sobre") }, text = { Text("CrismAPP - Gestão Catequética.") })
@@ -1495,8 +2009,8 @@ fun TurmaJovemScreen(navController: NavController) {
     if (idTurmaParaExcluir != null) {
         AlertDialog(
             onDismissRequest = { idTurmaParaExcluir = null },
-            title = { Text("Excluir Turma Jovem", fontWeight = FontWeight.Bold) },
-            text = { Text("Deseja mesmo excluir permanentemente a turma \"$nomeTurmaParaExcluir\"? Alunos e dados serão desconectados.") },
+            title = { Text("Arquivar Turma Jovem", fontWeight = FontWeight.Bold) },
+            text = { Text("Deseja arquivar a turma \"$nomeTurmaParaExcluir\"? Nenhum aluno, pagamento ou frequência será apagado.") },
             dismissButton = {
                 TextButton(onClick = { idTurmaParaExcluir = null }) {
                     Text("Cancelar", color = Color.Gray)
@@ -1514,7 +2028,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                 onSuccess = {
                                     Toast.makeText(
                                         context,
-                                        "Turma e dados relacionados excluídos!",
+                                        "Turma arquivada. Os dados foram preservados.",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     idTurmaParaExcluir = null
@@ -1524,7 +2038,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                 onError = { erro ->
                                     Toast.makeText(
                                         context,
-                                        erro.message ?: "Erro ao excluir a turma.",
+                                        erro.message ?: "Erro ao arquivar a turma.",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
@@ -1624,7 +2138,7 @@ fun TurmaJovemScreen(navController: NavController) {
         AlertDialog(
             onDismissRequest = { showAlertaFinanceiroEtapa2 = false },
             title = { Text("Segurança") },
-            text = { Text("Confirma o recebimento sob responsabilidade de: \"$catequistaResponsavelInput\"?") },
+            text = { Text("Confirma o recebimento sob responsabilidade de: \"$nomeCatequistaLogado\"?") },
             dismissButton = { TextButton({ showAlertaFinanceiroEtapa2 = false }) { Text("Voltar", color = Color.Gray) } },
             confirmButton = {
                 AnimatedVisibility(visible = liberarBotaoFinanceiroEtapa2) {
@@ -1634,7 +2148,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                 turmaId = idTurmaSelecionada!!,
                                 alunoId = alunoIdSalvar,
                                 parcela = parcelaSalvar,
-                                recebidoPor = catequistaResponsavelInput,
+                                recebidoPor = nomeCatequistaLogado,
                                 onSuccess = {
                                     Toast.makeText(
                                         context,
@@ -1643,7 +2157,7 @@ fun TurmaJovemScreen(navController: NavController) {
                                     ).show()
                                     showAlertaFinanceiroEtapa2 = false
                                     parcelaSelecionadaFinanceira = null
-                                    catequistaResponsavelInput = ""
+                                    catequistaResponsavelInput = nomeCatequistaLogado
                                     crismandoSelecionado = null
                                 },
                                 onError = { erro ->
@@ -1660,6 +2174,518 @@ fun TurmaJovemScreen(navController: NavController) {
                     ) { Text("Confirmar e Gravar") }
                 }
             }
+        )
+    }
+}
+
+
+@Composable
+private fun BotaoDestinoAvisoJovem(
+    titulo: String,
+    descricao: String,
+    cor: Color,
+    corTexto: Color,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = cor,
+            contentColor = corTexto
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = cor
+        ),
+        shape = RoundedCornerShape(6.dp),
+        contentPadding = PaddingValues(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = titulo,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+
+            Spacer(modifier = Modifier.height(3.dp))
+
+            Text(
+                text = descricao,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Normal
+            )
+        }
+    }
+}
+
+@Composable
+private fun CardAvisoAdministrativoJovem(
+    aviso: Aviso,
+    onExcluir: () -> Unit
+) {
+    val destino = aviso.turmaId
+        .trim()
+        .uppercase()
+
+    val corAviso = when {
+        destino == "GERAL" -> Crisma_Gold
+
+        destino == "CATEGORIA_JOVEM" ||
+                destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_JOVEM" ||
+                destino == "TURMA_ADULTA" -> Aviso_Blue
+
+        else -> Crisma_Primary
+    }
+
+    val rotulo = when {
+        destino == "GERAL" -> "AVISO GERAL"
+
+        destino == "CATEGORIA_JOVEM" ||
+                destino == "TURMA_JOVEM" ->
+            "TURMAS JOVENS"
+
+        destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_ADULTA" ->
+            "TURMAS ADULTAS"
+
+        else -> "SUA TURMA"
+    }
+
+    val corTextoRotulo = if (corAviso == Crisma_Gold) {
+        Color.Black
+    } else {
+        Color.White
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = corAviso.copy(alpha = 0.10f)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = corAviso
+        ),
+        shape = RoundedCornerShape(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = corAviso,
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        .padding(
+                            horizontal = 7.dp,
+                            vertical = 3.dp
+                        )
+                ) {
+                    Text(
+                        text = rotulo,
+                        color = corTextoRotulo,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(7.dp))
+
+                Text(
+                    text = aviso.texto,
+                    fontSize = 14.sp,
+                    color = Color.Black,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+
+            IconButton(
+                onClick = onExcluir
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Delete,
+                    contentDescription = "Excluir aviso",
+                    tint = Crisma_Primary.copy(
+                        alpha = 0.75f
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentosJovemDialog(
+    nomeCrismando: String,
+    matricula: String,
+    abaSelecionada: PerfilDocumentacao,
+    onAbaSelecionada: (PerfilDocumentacao) -> Unit,
+    cadastroCrismando: CadastroDocumentacao,
+    onCadastroCrismandoChange: (CadastroDocumentacao) -> Unit,
+    cadastroPadrinho: CadastroDocumentacao,
+    onCadastroPadrinhoChange: (CadastroDocumentacao) -> Unit,
+    responsavel: String,
+    onResponsavelChange: (String) -> Unit,
+    carregando: Boolean,
+    onDismiss: () -> Unit,
+    onSalvar: () -> Unit
+) {
+    val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+    val cadastroAtual = if (abaSelecionada == PerfilDocumentacao.CRISMANDO) cadastroCrismando else cadastroPadrinho
+    val atualizar: (CadastroDocumentacao) -> Unit = if (abaSelecionada == PerfilDocumentacao.CRISMANDO) onCadastroCrismandoChange else onCadastroPadrinhoChange
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier.fillMaxWidth().height(screenHeight * 0.82f),
+            shape = RoundedCornerShape(8.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White)
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxWidth().background(Crisma_Primary).padding(14.dp)) {
+                    Column(modifier = Modifier.padding(end = 32.dp)) {
+                        Text("Documentos", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
+                        Text("$nomeCrismando • $matricula", color = Color.White.copy(alpha = 0.9f), fontSize = 12.sp)
+                    }
+                    Icon(Icons.Outlined.Close, "Fechar", tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).clickable { onDismiss() })
+                }
+
+                TabRow(
+                    selectedTabIndex = if (abaSelecionada == PerfilDocumentacao.CRISMANDO) 0 else 1,
+                    containerColor = Color.White,
+                    contentColor = Crisma_Primary
+                ) {
+                    Tab(
+                        selected = abaSelecionada == PerfilDocumentacao.CRISMANDO,
+                        onClick = { onAbaSelecionada(PerfilDocumentacao.CRISMANDO) },
+                        text = { Text("Crismando") }
+                    )
+                    Tab(
+                        selected = abaSelecionada == PerfilDocumentacao.PADRINHO,
+                        onClick = { onAbaSelecionada(PerfilDocumentacao.PADRINHO) },
+                        text = { Text("Padrinho") }
+                    )
+                }
+
+                if (carregando) {
+                    Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Crisma_Primary)
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth().weight(1f).padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(vertical = 14.dp)
+                    ) {
+                        item { DocumentoSecaoTitulo("Sacramentos") }
+
+                        if (abaSelecionada == PerfilDocumentacao.PADRINHO) {
+                            item {
+                                EscolhaSimNaoDocumento("Possui Crisma?", cadastroAtual.crismaPossui) { possui ->
+                                    atualizar(cadastroAtual.copy(crismaPossui = possui, crismaEntregue = if (possui) cadastroAtual.crismaEntregue else false))
+                                }
+                            }
+                            if (cadastroAtual.crismaPossui) {
+                                item {
+                                    DocumentoSwitchLinha("Comprovante de Crisma entregue?", cadastroAtual.crismaEntregue) {
+                                        atualizar(cadastroAtual.copy(crismaEntregue = it))
+                                    }
+                                }
+                            }
+                        }
+
+                        if (abaSelecionada == PerfilDocumentacao.CRISMANDO || !cadastroAtual.crismaPossui) {
+                            item {
+                                EscolhaSimNaoDocumento("Possui Primeira Comunhão?", cadastroAtual.primeiraComunhaoPossui) { possui ->
+                                    atualizar(cadastroAtual.copy(
+                                        primeiraComunhaoPossui = possui,
+                                        primeiraComunhaoEntregue = if (possui) cadastroAtual.primeiraComunhaoEntregue else false
+                                    ))
+                                }
+                            }
+                            if (cadastroAtual.primeiraComunhaoPossui) {
+                                item {
+                                    DocumentoSwitchLinha("Comprovante de Primeira Comunhão entregue?", cadastroAtual.primeiraComunhaoEntregue) {
+                                        atualizar(cadastroAtual.copy(primeiraComunhaoEntregue = it))
+                                    }
+                                }
+                            } else {
+                                item {
+                                    DocumentoSwitchLinha("Comprovante de Batismo entregue?", cadastroAtual.batismoEntregue) {
+                                        atualizar(cadastroAtual.copy(batismoEntregue = it))
+                                    }
+                                }
+                            }
+                        }
+
+                        item { DocumentoSecaoTitulo("Identificação") }
+                        item {
+                            DocumentoSwitchLinha("Documento de identificação entregue?", cadastroAtual.identificacaoEntregue) { entregue ->
+                                atualizar(cadastroAtual.copy(
+                                    identificacaoEntregue = entregue,
+                                    tipoIdentificacao = if (entregue) cadastroAtual.tipoIdentificacao else TipoIdentificacaoDocumento.NAO_INFORMADO.name,
+                                    identificacaoOutro = if (entregue) cadastroAtual.identificacaoOutro else ""
+                                ))
+                            }
+                        }
+                        if (cadastroAtual.identificacaoEntregue) {
+                            item {
+                                TipoIdentificacaoSelector(cadastroAtual.obterTipoIdentificacao()) { tipo ->
+                                    atualizar(cadastroAtual.copy(
+                                        tipoIdentificacao = tipo.name,
+                                        identificacaoOutro = if (tipo == TipoIdentificacaoDocumento.OUTRO) cadastroAtual.identificacaoOutro else ""
+                                    ))
+                                }
+                            }
+                            if (cadastroAtual.obterTipoIdentificacao() == TipoIdentificacaoDocumento.OUTRO) {
+                                item {
+                                    OutlinedTextField(
+                                        value = cadastroAtual.identificacaoOutro,
+                                        onValueChange = { atualizar(cadastroAtual.copy(identificacaoOutro = it)) },
+                                        label = { Text("Qual documento?") },
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                }
+                            }
+                        }
+
+                        item { DocumentoSecaoTitulo("Casamento") }
+                        item {
+                            StatusCasamentoSelector(cadastroAtual.obterStatusCasamento()) { status ->
+                                atualizar(cadastroAtual.copy(casamentoStatus = status.name))
+                            }
+                        }
+
+                        item {
+                            OutlinedTextField(
+                                value = responsavel,
+                                onValueChange = onResponsavelChange,
+                                label = { Text("Responsável pela atualização") },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(color = Color(0xFFEEEEEE))
+                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, Crisma_Primary),
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = Crisma_Primary
+                        )
+                    ) {
+                        Text("Fechar")
+                    }
+                    Button(
+                        onClick = onSalvar,
+                        enabled = !carregando,
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary)
+                    ) {
+                        Icon(Icons.Outlined.Save, null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Salvar aba")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentoSecaoTitulo(titulo: String) {
+    Text(titulo, color = Crisma_Primary, fontWeight = FontWeight.Bold, fontSize = 15.sp, modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+}
+
+@Composable
+private fun EscolhaSimNaoDocumento(
+    titulo: String,
+    valor: Boolean,
+    onValueChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF9F9F9)
+        ),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Crisma_Primary
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Text(
+                text = titulo,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = { onValueChange(true) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (valor) {
+                            Crisma_Primary
+                        } else {
+                            Color.White
+                        },
+                        contentColor = if (valor) {
+                            Color.White
+                        } else {
+                            Crisma_Primary
+                        }
+                    ),
+                    border = BorderStroke(1.dp, Crisma_Primary),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(
+                        horizontal = 12.dp,
+                        vertical = 8.dp
+                    )
+                ) {
+                    Text("Sim")
+                }
+
+                Button(
+                    onClick = { onValueChange(false) },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (!valor) {
+                            Crisma_Primary
+                        } else {
+                            Color.White
+                        },
+                        contentColor = if (!valor) {
+                            Color.White
+                        } else {
+                            Crisma_Primary
+                        }
+                    ),
+                    border = BorderStroke(1.dp, Crisma_Primary),
+                    shape = RoundedCornerShape(20.dp),
+                    contentPadding = PaddingValues(
+                        horizontal = 12.dp,
+                        vertical = 8.dp
+                    )
+                ) {
+                    Text("Não")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DocumentoSwitchLinha(
+    titulo: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF9F9F9)
+        ),
+        shape = RoundedCornerShape(6.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Crisma_Primary
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 8.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = titulo,
+                modifier = Modifier.weight(1f),
+                fontWeight = FontWeight.Medium,
+                fontSize = 14.sp
+            )
+
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Color.White,
+                    checkedTrackColor = Color(0xFF2E7D32)
+                )
+            )
+        }
+    }
+}
+
+@Composable
+private fun TipoIdentificacaoSelector(selecionado: TipoIdentificacaoDocumento, onSelecionado: (TipoIdentificacaoDocumento) -> Unit) {
+    Column {
+        Text("Qual documento?", fontWeight = FontWeight.SemiBold)
+        TipoRadioDocumento("Identidade", selecionado == TipoIdentificacaoDocumento.IDENTIDADE) { onSelecionado(TipoIdentificacaoDocumento.IDENTIDADE) }
+        TipoRadioDocumento("CNH", selecionado == TipoIdentificacaoDocumento.CNH) { onSelecionado(TipoIdentificacaoDocumento.CNH) }
+        TipoRadioDocumento("Outro", selecionado == TipoIdentificacaoDocumento.OUTRO) { onSelecionado(TipoIdentificacaoDocumento.OUTRO) }
+    }
+}
+
+@Composable
+private fun StatusCasamentoSelector(selecionado: StatusCasamentoDocumento, onSelecionado: (StatusCasamentoDocumento) -> Unit) {
+    Column {
+        TipoRadioDocumento("Comprovante entregue", selecionado == StatusCasamentoDocumento.ENTREGUE) { onSelecionado(StatusCasamentoDocumento.ENTREGUE) }
+        TipoRadioDocumento("Não entregue", selecionado == StatusCasamentoDocumento.NAO_ENTREGUE) { onSelecionado(StatusCasamentoDocumento.NAO_ENTREGUE) }
+        TipoRadioDocumento("Não é casado", selecionado == StatusCasamentoDocumento.NAO_CASADO) { onSelecionado(StatusCasamentoDocumento.NAO_CASADO) }
+    }
+}
+
+@Composable
+private fun TipoRadioDocumento(
+    texto: String,
+    selecionado: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selecionado,
+            onClick = onClick,
+            colors = RadioButtonDefaults.colors(
+                selectedColor = Crisma_Primary,
+                unselectedColor = Crisma_Primary.copy(alpha = 0.65f)
+            )
+        )
+
+        Text(
+            text = texto,
+            fontSize = 14.sp
         )
     }
 }
