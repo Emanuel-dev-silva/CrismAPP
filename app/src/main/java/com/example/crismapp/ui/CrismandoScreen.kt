@@ -82,7 +82,8 @@ data class FrequenciaItem(
 
 data class CarneItem(
     val title: String,
-    val isPaid: Boolean
+    val isPaid: Boolean,
+    val details: String = ""
 )
 
 data class DocumentoItem(
@@ -92,7 +93,7 @@ data class DocumentoItem(
 
 private fun RegistroDocumento.ehDocumentoDoPadrinho(): Boolean {
     return id.contains("-PADRINHO-", ignoreCase = true) ||
-            nome.contains("Padrinho", ignoreCase = true)
+        nome.contains("Padrinho", ignoreCase = true)
 }
 
 data class AvisoItem(
@@ -506,27 +507,27 @@ fun CrismandoScreen(navController: NavController) {
 
                             val pertenceAoCrismando =
                                 avisoTurmaId == turmaId ||
-                                        avisoTurmaId.equals(
-                                            "GERAL",
-                                            ignoreCase = true
-                                        ) ||
-                                        (
-                                                destinoCategoria
-                                                    .isNotBlank() &&
-                                                        avisoTurmaId.equals(
-                                                            destinoCategoria,
-                                                            ignoreCase = true
-                                                        )
-                                                ) ||
-                                        (
-                                                destinoLegado
-                                                    .isNotBlank() &&
-                                                        avisoTurmaId.equals(
-                                                            destinoLegado,
-                                                            ignoreCase = true
-                                                        )
-                                                ) ||
-                                        avisoTurmaId.isBlank()
+                                    avisoTurmaId.equals(
+                                        "GERAL",
+                                        ignoreCase = true
+                                    ) ||
+                                    (
+                                        destinoCategoria
+                                            .isNotBlank() &&
+                                            avisoTurmaId.equals(
+                                                destinoCategoria,
+                                                ignoreCase = true
+                                            )
+                                    ) ||
+                                    (
+                                        destinoLegado
+                                            .isNotBlank() &&
+                                            avisoTurmaId.equals(
+                                                destinoLegado,
+                                                ignoreCase = true
+                                            )
+                                    ) ||
+                                    avisoTurmaId.isBlank()
 
                             if (
                                 texto.isBlank() ||
@@ -610,8 +611,8 @@ fun CrismandoScreen(navController: NavController) {
 
     val todosDocumentosNecessariosEntregues =
         crismandoFoiCadastrado &&
-                padrinhoFoiCadastrado &&
-                !possuiDocumentoPendente
+            padrinhoFoiCadastrado &&
+            !possuiDocumentoPendente
 
     val corLedDocumentos = when {
         carregandoDocumentos -> Color.Gray
@@ -1063,6 +1064,10 @@ fun CrismandoScreen(navController: NavController) {
 
                     val paga = pagamento != null
                     val dataPagamento = pagamento?.obterDataPagamento() ?: 0L
+                    val recebidoPor = pagamento
+                        ?.obterResponsavelPagamento()
+                        .orEmpty()
+                        .ifBlank { "Não identificado" }
 
                     val situacao = when {
                         !paga -> "Pendente"
@@ -1076,7 +1081,12 @@ fun CrismandoScreen(navController: NavController) {
                             title = "Parcela ${
                                 numeroParcela.toString().padStart(2, '0')
                             } - $situacao",
-                            isPaid = paga
+                            isPaid = paga,
+                            details = if (paga) {
+                                "Recebido por: $recebidoPor"
+                            } else {
+                                ""
+                            }
                         )
                     )
                 }
@@ -1241,13 +1251,29 @@ private fun CarneCard(item: CarneItem) {
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Text(
-                text = item.title,
-                color = Color.Black,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = customFont
-            )
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = item.title,
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    fontFamily = customFont
+                )
+
+                if (item.details.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = item.details,
+                        color = Color.Gray,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = customFont
+                    )
+                }
+            }
         }
     }
 }
@@ -1365,11 +1391,11 @@ fun AvisoCardComponent(
             "AVISO GERAL"
 
         destino == "CATEGORIA_JOVEM" ||
-                destino == "TURMA_JOVEM" ->
+            destino == "TURMA_JOVEM" ->
             "TURMAS JOVENS"
 
         destino == "CATEGORIA_ADULTA" ||
-                destino == "TURMA_ADULTA" ->
+            destino == "TURMA_ADULTA" ->
             "TURMAS ADULTAS"
 
         else -> "SUA TURMA"
@@ -1380,9 +1406,9 @@ fun AvisoCardComponent(
             Crisma_Gold
 
         destino == "CATEGORIA_JOVEM" ||
-                destino == "CATEGORIA_ADULTA" ||
-                destino == "TURMA_JOVEM" ||
-                destino == "TURMA_ADULTA" ->
+            destino == "CATEGORIA_ADULTA" ||
+            destino == "TURMA_JOVEM" ||
+            destino == "TURMA_ADULTA" ->
             Color(0xFF1976D2)
 
         else -> Crisma_Primary
@@ -1396,15 +1422,15 @@ fun AvisoCardComponent(
 
     val cardBackground = when {
         destino == "GERAL" || destino.isBlank() ->
-            Color(0xFFFFF8D1)
+            Color(0xFFFFFEFA)
 
         destino == "CATEGORIA_JOVEM" ||
-                destino == "CATEGORIA_ADULTA" ||
-                destino == "TURMA_JOVEM" ||
-                destino == "TURMA_ADULTA" ->
-            Color(0xFFE3F2FD)
+            destino == "CATEGORIA_ADULTA" ||
+            destino == "TURMA_JOVEM" ||
+            destino == "TURMA_ADULTA" ->
+            Color(0xFFFAFCFF)
 
-        else -> Color(0xFFFFEBEE)
+        else -> Color(0xFFFFFBFB)
     }
 
     Card(

@@ -1,12 +1,14 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
+import android.content.Context
 import android.net.Uri
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.Login
@@ -17,14 +19,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -33,12 +36,15 @@ import androidx.navigation.NavController
 import com.example.crismapp.R
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
-import java.util.Locale
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
 private val Light_Gray_Darker = Color(0xFFE0E0E0)
 private val customFont = FontFamily.Default
+
+private const val PREFS_LOGIN_CRISMANDO = "prefs_login_crismando"
+private const val CHAVE_TENTATIVAS_INVALIDAS = "tentativas_invalidas"
+private const val CHAVE_BLOQUEADO_ATE = "bloqueado_ate"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -46,12 +52,57 @@ fun CrismandoLoginScreen(
     navController: NavController
 ) {
     val view = LocalView.current
+    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
 
     val db = remember {
         FirebaseFirestore.getInstance()
     }
+
+    /*
+     * O bloqueio é salvo no aparelho para continuar valendo mesmo
+     * depois de fechar e abrir o aplicativo.
+     *
+     * Escalonamento:
+     * - 3 erros: 1 minuto;
+     * - mais 2 erros: 5 minutos;
+     * - mais 2 erros: 1 hora.
+     *
+     * Após cumprir o bloqueio de 1 hora, a contagem recomeça do zero.
+     * Um login correto também limpa toda a contagem.
+     */
+    val preferenciasLogin = remember {
+        context.getSharedPreferences(
+            PREFS_LOGIN_CRISMANDO,
+            Context.MODE_PRIVATE
+        )
+    }
+
+    var tentativasInvalidas by remember {
+        mutableStateOf(
+            preferenciasLogin.getInt(
+                CHAVE_TENTATIVAS_INVALIDAS,
+                0
+            )
+        )
+    }
+
+    var bloqueadoAte by remember {
+        mutableStateOf(
+            preferenciasLogin.getLong(
+                CHAVE_BLOQUEADO_ATE,
+                0L
+            )
+        )
+    }
+
+    var segundosRestantesBloqueio by remember {
+        mutableStateOf(0)
+    }
+
+    val bloqueioAtivo =
+        segundosRestantesBloqueio > 0
 
     // Código usado para localizar o documento na coleção "usuarios".
     var codigoMatricula by remember {
@@ -85,6 +136,120 @@ fun CrismandoLoginScreen(
 
     var animarFormulario by remember {
         mutableStateOf(false)
+    }
+
+    fun formatarTempoBloqueio(segundosTotais: Int): String {
+        val horas = segundosTotais / 3600
+        val minutos = (segundosTotais % 3600) / 60
+        val segundos = segundosTotais % 60
+
+        return when {
+            horas > 0 ->
+                String.format("%02d:%02d:%02d", horas, minutos, segundos)
+
+            else ->
+                String.format("%02d:%02d", minutos, segundos)
+        }
+    }
+
+    fun registrarTentativaInvalida() {
+        val novaQuantidade = tentativasInvalidas + 1
+        tentativasInvalidas = novaQuantidade
+
+        preferenciasLogin.edit()
+            .putInt(
+                CHAVE_TENTATIVAS_INVALIDAS,
+                novaQuantidade
+            )
+            .apply()
+
+        val duracaoBloqueio = when (novaQuantidade) {
+            3 -> 60_000L
+            5 -> 5 * 60_000L
+            7 -> 60 * 60_000L
+            else -> 0L
+        }
+
+        if (duracaoBloqueio > 0L) {
+            val novoBloqueioAte =
+                System.currentTimeMillis() + duracaoBloqueio
+
+            bloqueadoAte = novoBloqueioAte
+
+            preferenciasLogin.edit()
+                .putLong(
+                    CHAVE_BLOQUEADO_ATE,
+                    novoBloqueioAte
+                )
+                .apply()
+
+            mensagemErro = null
+        } else {
+            mensagemErro = when (novaQuantidade) {
+                1 ->
+                    "Código inválido. Restam 2 tentativas antes do bloqueio."
+
+                2 ->
+                    "Código inválido. Resta 1 tentativa antes do bloqueio de 1 minuto."
+
+                4 ->
+                    "Código inválido. Resta 1 tentativa antes do bloqueio de 5 minutos."
+
+                6 ->
+                    "Código inválido. Resta 1 tentativa antes do bloqueio de 1 hora."
+
+                else ->
+                    "Código inválido ou não cadastrado."
+            }
+        }
+    }
+
+    fun limparBloqueioETentativas() {
+        tentativasInvalidas = 0
+        bloqueadoAte = 0L
+        segundosRestantesBloqueio = 0
+
+        preferenciasLogin.edit()
+            .remove(CHAVE_TENTATIVAS_INVALIDAS)
+            .remove(CHAVE_BLOQUEADO_ATE)
+            .apply()
+    }
+
+    /*
+     * Mantém um contador regressivo visível.
+     * Nos bloqueios de 1 e 5 minutos, a quantidade de erros é mantida.
+     * Quando termina o bloqueio de 1 hora, a contagem é zerada.
+     */
+    LaunchedEffect(bloqueadoAte) {
+        while (bloqueadoAte > 0L) {
+            val restanteMillis =
+                bloqueadoAte - System.currentTimeMillis()
+
+            if (restanteMillis <= 0L) {
+                segundosRestantesBloqueio = 0
+
+                preferenciasLogin.edit()
+                    .remove(CHAVE_BLOQUEADO_ATE)
+                    .apply()
+
+                bloqueadoAte = 0L
+
+                if (tentativasInvalidas >= 7) {
+                    tentativasInvalidas = 0
+
+                    preferenciasLogin.edit()
+                        .remove(CHAVE_TENTATIVAS_INVALIDAS)
+                        .apply()
+                }
+
+                break
+            }
+
+            segundosRestantesBloqueio =
+                ((restanteMillis + 999L) / 1000L).toInt()
+
+            delay(1_000L)
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -243,7 +408,7 @@ fun CrismandoLoginScreen(
 
                     Button(
                         onClick = {
-                            navController.navigate("LoginCatequista") {
+                            navController.navigate("loginCatequista") {
                                 launchSingleTop = true
                             }
                         },
@@ -268,89 +433,195 @@ fun CrismandoLoginScreen(
             // ÁREA INFERIOR
             // =====================================================
 
+            /*
+             * A parte branca sobe metade da altura das abas.
+             * Assim, o formulário começa logo abaixo dos botões,
+             * sem a faixa vazia que aparecia anteriormente.
+             */
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.35f)
-                    .background(Color.White),
+                    .offset(y = -(screenHeight * 0.04f))
+                    .background(Color.White)
+                    .imePadding()
+                    .navigationBarsPadding(),
                 contentAlignment = Alignment.TopCenter
             ) {
                 if (animarFormulario) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 24.dp),
+                            .padding(
+                                start = 28.dp,
+                                end = 28.dp,
+                                top = 8.dp,
+                                bottom = 10.dp
+                            ),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Top
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        color = Crisma_Primary.copy(alpha = 0.08f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Key,
+                                    contentDescription = null,
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(9.dp))
+
+                            Column {
+                                Text(
+                                    text = "Acesso do crismando",
+                                    color = Color.Black,
+                                    fontSize = 16.sp,
+                                    lineHeight = 17.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = "Entre com seu código de matrícula",
+                                    color = Color.Gray,
+                                    fontSize = 11.sp,
+                                    lineHeight = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
                         OutlinedTextField(
                             value = codigoMatricula,
                             onValueChange = { textoDigitado ->
+                                /*
+                                 * O prefixo CX- fica fixo no campo.
+                                 * O usuário digita somente os números.
+                                 */
                                 codigoMatricula = textoDigitado
-                                    .uppercase(Locale.ROOT)
-                                    .replace(" ", "")
-                                    .trim()
+                                    .filter { it.isDigit() }
+                                    .take(8)
 
                                 mensagemErro = null
                             },
                             label = {
                                 Text(
-                                    text = "Código de Matrícula (Ex: CX-1234)",
+                                    text = "Código de matrícula",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             },
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 14.sp,
+                                color = Color(0xFF4F4F4F),
+                                fontWeight = FontWeight.Bold
+                            ),
                             leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Key,
-                                    contentDescription = null,
-                                    tint = Crisma_Primary
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(
+                                            color = Crisma_Primary.copy(alpha = 0.08f),
+                                            shape = RoundedCornerShape(9.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Key,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            },
+                            prefix = {
+                                Text(
+                                    text = "CX-",
+                                    color = Color(0xFF4F4F4F),
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             },
                             placeholder = {
-                                Text(text = "CX-XXXX")
+                                Text(
+                                    text = "1234",
+                                    color = Color(0xFF8A8A8A),
+                                    fontSize = 13.sp
+                                )
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 2.dp,
-                                    shape = RoundedCornerShape(4.dp)
-                                ),
-                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
+                                focusedContainerColor = Color(0xFFFFFDFD),
+                                unfocusedContainerColor = Color(0xFFFFFDFD),
                                 focusedBorderColor = Crisma_Primary,
-                                unfocusedBorderColor = Color(0xFFF0F0F0),
-                                focusedLabelColor = Crisma_Primary,
-                                unfocusedLabelColor = Color.Gray,
+                                unfocusedBorderColor = Color(0xFFECECEC),
+                                focusedLabelColor = Color(0xFF5F5F5F),
+                                unfocusedLabelColor = Color(0xFF707070),
                                 cursorColor = Crisma_Primary
                             ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number
+                            ),
                             singleLine = true,
-                            enabled = !carregando
+                            enabled = !carregando && !bloqueioAtivo
                         )
 
-                        mensagemErro?.let { erro ->
+                        if (bloqueioAtivo) {
                             Text(
-                                text = erro,
-                                color = Color.Red,
-                                fontSize = 12.sp,
+                                text =
+                                "Muitas tentativas incorretas. Tente novamente em ${
+                                    formatarTempoBloqueio(
+                                        segundosRestantesBloqueio
+                                    )
+                                }.",
+                                color = Crisma_Primary,
+                                fontSize = 11.sp,
+                                lineHeight = 14.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier
-                                    .padding(top = 8.dp)
+                                    .padding(top = 6.dp)
                                     .fillMaxWidth(),
                                 textAlign = TextAlign.Center
                             )
+                        } else {
+                            mensagemErro?.let { erro ->
+                                Text(
+                                    text = erro,
+                                    color = Crisma_Primary,
+                                    fontSize = 11.sp,
+                                    lineHeight = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier
+                                        .padding(top = 6.dp)
+                                        .fillMaxWidth(),
+                                    textAlign = TextAlign.Center
+                                )
+                            }
                         }
 
-                        Spacer(
-                            modifier = Modifier.height(20.dp)
-                        )
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Button(
+                            Card(
                                 onClick = {
                                     navController.navigate("userSelection") {
                                         popUpTo("crismandoLoginScreen") {
@@ -360,57 +631,66 @@ fun CrismandoLoginScreen(
                                         launchSingleTop = true
                                     }
                                 },
-                                elevation = ButtonDefaults.buttonElevation(
+                                enabled = !carregando,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color.White,
+                                    disabledContainerColor = Color(0xFFF7F7F7)
+                                ),
+                                elevation = CardDefaults.cardElevation(
                                     defaultElevation = 2.dp,
                                     pressedElevation = 1.dp
                                 ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Light_Gray_Darker
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = Color(0xFFF0F0F0)
                                 ),
-                                shape = RoundedCornerShape(4.dp),
-                                enabled = !carregando
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Outlined.ArrowBack,
-                                    contentDescription = null,
-                                    tint = Crisma_Primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                        Icons.AutoMirrored.Outlined.ArrowBack,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(17.dp)
+                                    )
 
-                                Spacer(
-                                    modifier = Modifier.width(8.dp)
-                                )
+                                    Spacer(modifier = Modifier.width(6.dp))
 
-                                Text(
-                                    text = "Voltar",
-                                    color = Crisma_Primary,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    Text(
+                                        text = "Voltar",
+                                        color = Crisma_Primary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
-                            Button(
+                            Card(
                                 onClick = {
-                                    val matriculaNormalizada = codigoMatricula
-                                        .uppercase(Locale.ROOT)
-                                        .replace(" ", "")
-                                        .trim()
-
-                                    if (matriculaNormalizada.isBlank()) {
-                                        mensagemErro =
-                                            "Insira o seu código de acesso."
-
-                                        return@Button
+                                    if (bloqueioAtivo) {
+                                        return@Card
                                     }
 
-                                    if (!matriculaNormalizada.startsWith("CX-")) {
-                                        mensagemErro =
-                                            "Formato inválido. O código deve iniciar com 'CX-'"
+                                    val numeroMatricula =
+                                        codigoMatricula.trim()
 
-                                        return@Button
+                                    if (numeroMatricula.isBlank()) {
+                                        mensagemErro =
+                                            "Digite o número da sua matrícula."
+
+                                        return@Card
                                     }
+
+                                    val matriculaNormalizada =
+                                        "CX-$numeroMatricula"
 
                                     carregando = true
                                     mensagemErro = null
@@ -421,18 +701,11 @@ fun CrismandoLoginScreen(
                                         .addOnSuccessListener { documento ->
                                             if (!documento.exists()) {
                                                 carregando = false
-                                                mensagemErro =
-                                                    "Código inválido ou não cadastrado."
+                                                registrarTentativaInvalida()
 
                                                 return@addOnSuccessListener
                                             }
 
-                                            /*
-                                             * O campo "ativo" é opcional.
-                                             *
-                                             * Alunos antigos que não possuem esse campo
-                                             * serão considerados ativos normalmente.
-                                             */
                                             val usuarioAtivo =
                                                 documento.getBoolean("ativo") ?: true
 
@@ -444,21 +717,11 @@ fun CrismandoLoginScreen(
                                                 return@addOnSuccessListener
                                             }
 
-                                            /*
-                                             * A matrícula é enviada na rota.
-                                             *
-                                             * A CrismandoScreen usará esse valor para:
-                                             *
-                                             * - buscar o nome do crismando;
-                                             * - descobrir sua turma;
-                                             * - carregar avisos da turma;
-                                             * - carregar frequência individual;
-                                             * - carregar carnês e documentos.
-                                             */
                                             val matriculaCodificada =
                                                 Uri.encode(matriculaNormalizada)
 
                                             carregando = false
+                                            limparBloqueioETentativas()
 
                                             navController.navigate(
                                                 "crismandoScreen?matricula=$matriculaCodificada"
@@ -487,42 +750,49 @@ fun CrismandoLoginScreen(
                                                 }
                                         }
                                 },
-                                elevation = ButtonDefaults.buttonElevation(
+                                enabled = !carregando && !bloqueioAtivo,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Crisma_Primary,
+                                    disabledContainerColor = Color(0xFFE7E7E7)
+                                ),
+                                elevation = CardDefaults.cardElevation(
                                     defaultElevation = 2.dp,
                                     pressedElevation = 1.dp
                                 ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(52.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Crisma_Primary
-                                ),
-                                shape = RoundedCornerShape(4.dp),
-                                enabled = !carregando
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                if (carregando) {
-                                    CircularProgressIndicator(
-                                        color = Color.White,
-                                        modifier = Modifier.size(20.dp),
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Entrar",
-                                        color = Color.White,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (carregando) {
+                                        CircularProgressIndicator(
+                                            color = Color.White,
+                                            modifier = Modifier.size(18.dp),
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Entrar",
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
 
-                                    Spacer(
-                                        modifier = Modifier.width(8.dp)
-                                    )
+                                        Spacer(modifier = Modifier.width(6.dp))
 
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Outlined.Login,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                        Icon(
+                                            imageVector =
+                                            Icons.AutoMirrored.Outlined.Login,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
                                 }
                             }
                         }

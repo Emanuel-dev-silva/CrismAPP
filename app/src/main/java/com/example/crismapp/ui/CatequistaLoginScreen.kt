@@ -1,7 +1,7 @@
 package com.example.crismapp.ui
 
 import android.app.Activity
-import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,7 +20,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalConfiguration
@@ -68,30 +67,18 @@ fun CatequistaLoginScreen(navController: NavController) {
 
     LaunchedEffect(Unit) {
         val window = (view.context as Activity).window
+
         window.statusBarColor = Crisma_Primary.toArgb()
+
         WindowCompat.getInsetsController(
             window,
             view
         ).isAppearanceLightStatusBars = false
 
         /*
-         * Caso o catequista já tenha entrado anteriormente,
-         * validamos novamente o perfil antes de abrir o painel.
+         * Sempre inicia sem uma sessão antiga de catequista.
          */
-        if (FirebaseAuthRepository.possuiSessaoFirebase()) {
-            FirebaseAuthRepository.restaurarSessao(
-                onSuccess = {
-                    navController.navigate("catequistaOptions") {
-                        popUpTo("loginCatequista") {
-                            inclusive = true
-                        }
-                        launchSingleTop = true
-                    }
-                },
-                onSemSessao = {},
-                onError = {}
-            )
-        }
+        FirebaseAuthRepository.sair()
 
         delay(100)
         animarImagem = true
@@ -103,8 +90,16 @@ fun CatequistaLoginScreen(navController: NavController) {
         animarFormulario = true
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize()
+        ) {
+
+            // =====================================================
+            // CABEÇALHO
+            // =====================================================
 
             Box(
                 modifier = Modifier
@@ -185,6 +180,14 @@ fun CatequistaLoginScreen(navController: NavController) {
                 }
             }
 
+            // =====================================================
+            // ABAS CRISMANDO / CATEQUISTA
+            //
+            // Mesma estrutura usada nas demais telas do aplicativo:
+            // os botões possuem a altura completa e ficam metade
+            // sobre o vermelho e metade sobre a área branca.
+            // =====================================================
+
             Box(
                 modifier = Modifier.fillMaxWidth(),
                 contentAlignment = Alignment.Center
@@ -198,9 +201,15 @@ fun CatequistaLoginScreen(navController: NavController) {
                 ) {
                     Button(
                         onClick = {
+                            FirebaseAuthRepository.sair()
+
                             navController.navigate(
                                 "crismandoLoginScreen"
                             ) {
+                                popUpTo("loginCatequista") {
+                                    inclusive = true
+                                }
+
                                 launchSingleTop = true
                             }
                         },
@@ -247,62 +256,135 @@ fun CatequistaLoginScreen(navController: NavController) {
                 }
             }
 
+            // =====================================================
+            // FORMULÁRIO
+            // =====================================================
+
+            /*
+             * O formulário sobe exatamente a metade da altura das abas.
+             * Isso ocupa o espaço que antes aparecia como uma faixa branca
+             * vazia, sem cortar nem descentralizar os botões.
+             */
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(0.35f)
-                    .background(Color.White),
+                    .offset(y = -(screenHeight * 0.04f))
+                    .background(Color.White)
+                    .imePadding()
+                    .navigationBarsPadding(),
                 contentAlignment = Alignment.TopCenter
             ) {
                 if (animarFormulario) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .padding(horizontal = 24.dp),
+                            .padding(
+                                start = 28.dp,
+                                end = 28.dp,
+                                top = 8.dp,
+                                bottom = 6.dp
+                            ),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 2.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        color = Crisma_Primary.copy(alpha = 0.08f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Lock,
+                                    contentDescription = null,
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(9.dp))
+
+                            Column {
+                                Text(
+                                    text = "Acesso do catequista",
+                                    color = Color.Black,
+                                    fontSize = 16.sp,
+                                    lineHeight = 17.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = "Entre com seu usuário e PIN",
+                                    color = Color.Gray,
+                                    fontSize = 11.sp,
+                                    lineHeight = 12.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
                         OutlinedTextField(
                             value = username,
                             onValueChange = {
                                 username =
-                                    FirebaseAuthRepository
-                                        .normalizarLogin(it)
+                                    FirebaseAuthRepository.normalizarLogin(it)
+
                                 mensagemErro = ""
                             },
                             label = {
                                 Text(
                                     text = "Nome de usuário",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             },
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 14.sp,
+                                color = Color(0xFF4F4F4F)
+                            ),
                             leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Person,
-                                    contentDescription = null,
-                                    tint = Crisma_Primary
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(
+                                            color = Crisma_Primary.copy(alpha = 0.08f),
+                                            shape = RoundedCornerShape(9.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Person,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 2.dp,
-                                    shape = RoundedCornerShape(4.dp)
-                                ),
-                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
+                                focusedContainerColor = Color(0xFFFFFDFD),
+                                unfocusedContainerColor = Color(0xFFFFFDFD),
                                 focusedBorderColor = Crisma_Primary,
-                                unfocusedBorderColor = Color(0xFFF0F0F0),
-                                focusedLabelColor = Crisma_Primary,
-                                unfocusedLabelColor = Color.Gray,
+                                unfocusedBorderColor = Color(0xFFECECEC),
+                                focusedLabelColor = Color(0xFF5F5F5F),
+                                unfocusedLabelColor = Color(0xFF707070),
                                 cursorColor = Crisma_Primary
                             ),
                             singleLine = true,
                             enabled = !carregandoLogin
                         )
 
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(7.dp))
 
                         OutlinedTextField(
                             value = password,
@@ -310,20 +392,37 @@ fun CatequistaLoginScreen(navController: NavController) {
                                 password = novoValor
                                     .filter { it.isDigit() }
                                     .take(6)
+
                                 mensagemErro = ""
                             },
                             label = {
                                 Text(
                                     text = "PIN de 6 dígitos",
+                                    fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium
                                 )
                             },
+                            textStyle = LocalTextStyle.current.copy(
+                                fontSize = 14.sp,
+                                color = Color(0xFF4F4F4F)
+                            ),
                             leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Outlined.Lock,
-                                    contentDescription = null,
-                                    tint = Crisma_Primary
-                                )
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .background(
+                                            color = Crisma_Primary.copy(alpha = 0.08f),
+                                            shape = RoundedCornerShape(9.dp)
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Outlined.Lock,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             },
                             trailingIcon = {
                                 val icone = if (passwordVisible) {
@@ -334,36 +433,29 @@ fun CatequistaLoginScreen(navController: NavController) {
 
                                 IconButton(
                                     onClick = {
-                                        passwordVisible =
-                                            !passwordVisible
+                                        passwordVisible = !passwordVisible
                                     }
                                 ) {
                                     Icon(
                                         imageVector = icone,
                                         contentDescription = null,
-                                        tint = Crisma_Primary
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .shadow(
-                                    elevation = 2.dp,
-                                    shape = RoundedCornerShape(4.dp)
-                                ),
-                            shape = RoundedCornerShape(4.dp),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color.White,
-                                unfocusedContainerColor = Color.White,
+                                focusedContainerColor = Color(0xFFFFFDFD),
+                                unfocusedContainerColor = Color(0xFFFFFDFD),
                                 focusedBorderColor = Crisma_Primary,
-                                unfocusedBorderColor = Color(0xFFF0F0F0),
-                                focusedLabelColor = Crisma_Primary,
-                                unfocusedLabelColor = Color.Gray,
+                                unfocusedBorderColor = Color(0xFFECECEC),
+                                focusedLabelColor = Color(0xFF5F5F5F),
+                                unfocusedLabelColor = Color(0xFF707070),
                                 cursorColor = Crisma_Primary
                             ),
-                            visualTransformation = if (
-                                passwordVisible
-                            ) {
+                            visualTransformation = if (passwordVisible) {
                                 VisualTransformation.None
                             } else {
                                 PasswordVisualTransformation()
@@ -379,21 +471,20 @@ fun CatequistaLoginScreen(navController: NavController) {
                             Text(
                                 text = mensagemErro,
                                 color = Crisma_Primary,
-                                fontSize = 12.sp,
+                                fontSize = 11.sp,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(top = 5.dp)
+                                    .padding(top = 4.dp)
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(9.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement =
-                            Arrangement.spacedBy(12.dp)
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Button(
+                            Card(
                                 onClick = {
                                     navController.navigate(
                                         "userSelection"
@@ -403,39 +494,49 @@ fun CatequistaLoginScreen(navController: NavController) {
                                         }
                                     }
                                 },
-                                elevation =
-                                ButtonDefaults.buttonElevation(
+                                enabled = !carregandoLogin,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Color.White,
+                                    disabledContainerColor = Color(0xFFF7F7F7)
+                                ),
+                                elevation = CardDefaults.cardElevation(
                                     defaultElevation = 2.dp,
                                     pressedElevation = 1.dp
                                 ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Light_Gray_Darker
+                                border = BorderStroke(
+                                    width = 1.dp,
+                                    color = Color(0xFFF0F0F0)
                                 ),
-                                shape = RoundedCornerShape(4.dp),
-                                enabled = !carregandoLogin
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(
-                                    imageVector =
-                                    Icons.AutoMirrored.Outlined.ArrowBack,
-                                    contentDescription = null,
-                                    tint = Crisma_Primary,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                        Icons.AutoMirrored.Outlined.ArrowBack,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary,
+                                        modifier = Modifier.size(17.dp)
+                                    )
 
-                                Spacer(modifier = Modifier.width(8.dp))
+                                    Spacer(modifier = Modifier.width(6.dp))
 
-                                Text(
-                                    text = "Voltar",
-                                    color = Crisma_Primary,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                    Text(
+                                        text = "Voltar",
+                                        color = Crisma_Primary,
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                             }
 
-                            Button(
+                            Card(
                                 onClick = {
                                     carregandoLogin = true
                                     mensagemErro = ""
@@ -461,86 +562,77 @@ fun CatequistaLoginScreen(navController: NavController) {
                                             },
                                             onError = { erro ->
                                                 carregandoLogin = false
+
                                                 mensagemErro =
                                                     erro.message
                                                         ?: "Não foi possível entrar."
                                             }
                                         )
                                 },
-                                elevation =
-                                ButtonDefaults.buttonElevation(
-                                    defaultElevation = 2.dp,
-                                    pressedElevation = 1.dp
-                                ),
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = Crisma_Primary
-                                ),
-                                shape = RoundedCornerShape(4.dp),
                                 enabled =
                                 username.isNotBlank() &&
                                         password.length == 6 &&
-                                        !carregandoLogin
+                                        !carregandoLogin,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(44.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = Crisma_Primary,
+                                    disabledContainerColor = Color(0xFFE7E7E7)
+                                ),
+                                elevation = CardDefaults.cardElevation(
+                                    defaultElevation = 2.dp,
+                                    pressedElevation = 1.dp
+                                ),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                if (carregandoLogin) {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(20.dp),
-                                        color = Color.White,
-                                        strokeWidth = 2.dp
-                                    )
-                                } else {
-                                    Text(
-                                        text = "Entrar",
-                                        color = Color.White,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold
-                                    )
+                                Row(
+                                    modifier = Modifier.fillMaxSize(),
+                                    horizontalArrangement = Arrangement.Center,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (carregandoLogin) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = Color.White,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Entrar",
+                                            color = if (
+                                                username.isNotBlank() &&
+                                                password.length == 6
+                                            ) {
+                                                Color.White
+                                            } else {
+                                                Color.Gray
+                                            },
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
 
-                                    Spacer(modifier = Modifier.width(8.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
 
-                                    Icon(
-                                        imageVector =
-                                        Icons.AutoMirrored.Outlined.Login,
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                        Icon(
+                                            imageVector =
+                                            Icons.AutoMirrored.Outlined.Login,
+                                            contentDescription = null,
+                                            tint = if (
+                                                username.isNotBlank() &&
+                                                password.length == 6
+                                            ) {
+                                                Color.White
+                                            } else {
+                                                Color.Gray
+                                            },
+                                            modifier = Modifier.size(17.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(7.dp))
-
-                        OutlinedButton(
-                            onClick = {
-                                Toast.makeText(
-                                    context,
-                                    "O acesso com Google será ativado na próxima etapa.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(42.dp),
-                            border = androidx.compose.foundation.BorderStroke(
-                                1.dp,
-                                Crisma_Primary
-                            ),
-                            colors =
-                            ButtonDefaults.outlinedButtonColors(
-                                contentColor = Crisma_Primary
-                            ),
-                            shape = RoundedCornerShape(4.dp),
-                            enabled = !carregandoLogin
-                        ) {
-                            Text(
-                                text = "Entrar com Google — em breve",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 13.sp
-                            )
-                        }
                     }
                 }
             }

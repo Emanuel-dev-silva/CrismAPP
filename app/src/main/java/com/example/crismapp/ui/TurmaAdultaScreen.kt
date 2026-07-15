@@ -476,7 +476,11 @@ fun TurmaAdultaScreen(navController: NavController) {
                 cadastroDocumentosPadrinho = cadastro.copy(
                     alunoId = crismando.id,
                     turmaId = cadastro.turmaId.ifBlank { crismando.turmaId },
-                    perfil = PerfilDocumentacao.PADRINHO.name
+                    perfil = PerfilDocumentacao.PADRINHO.name,
+                    crismaPossui = true,
+                    primeiraComunhaoPossui = false,
+                    primeiraComunhaoEntregue = false,
+                    batismoEntregue = false
                 )
                 concluir()
             },
@@ -495,7 +499,7 @@ fun TurmaAdultaScreen(navController: NavController) {
     ) {
         val destinoId = when {
             !possuiPermissaoTotal &&
-                destinoAvisoSelecionado != DestinoAvisoAdulto.TURMA -> null
+                    destinoAvisoSelecionado != DestinoAvisoAdulto.TURMA -> null
 
             else -> when (destinoAvisoSelecionado) {
                 DestinoAvisoAdulto.GERAL -> "GERAL"
@@ -579,8 +583,8 @@ fun TurmaAdultaScreen(navController: NavController) {
             Box(modifier = Modifier.fillMaxWidth().weight(0.65f).background(Crisma_Primary).padding(horizontal = 16.dp, vertical = 24.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        UserIconWithLabelAdulta(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
-                        UserIconWithLabelAdulta(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
+                        UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
+                        UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -593,7 +597,17 @@ fun TurmaAdultaScreen(navController: NavController) {
                         Column {
                             Text("\nGestão: Turma Adulta", fontSize = 24.sp, color = Color.White, fontWeight = FontWeight.Bold)
                             HorizontalDivider(color = Crisma_Gold, thickness = 2.dp, modifier = Modifier.fillMaxWidth(0.76f).padding(vertical = 12.dp))
-                            Text("Administração e Pastoral", fontSize = 16.sp, color = Color.White)
+                            Text(
+                                text = "$nomeCatequistaLogado - ${
+                                    if (possuiPermissaoTotal) {
+                                        "Permissão total"
+                                    } else {
+                                        "Permissão comum"
+                                    }
+                                }",
+                                fontSize = 16.sp,
+                                color = Color.White
+                            )
                         }
                     }
                 }
@@ -642,40 +656,40 @@ fun TurmaAdultaScreen(navController: NavController) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement =
-                                    Arrangement.spacedBy(8.dp)
+                                Arrangement.spacedBy(8.dp)
                             ) {
-                            SmallMenuCardAdulta(
-                                title = "Frequência",
-                                icon = Icons.Outlined.CheckCircle,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                encontroSelecionado = null
-                                modoEdicaoFrequencia = false
-                                showFrequenciaPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Turmas",
-                                icon = Icons.Outlined.Groups,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                nomeTurmaSelecionada = null
-                                modoCriarTurma = false
-                                showTurmasPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Avisos",
-                                icon = Icons.Outlined.Notifications,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                destinoAvisoSelecionado = null
-                                idTurmaSelecionada = null
-                                nomeTurmaSelecionada = null
-                                novoAvisoTexto = ""
-                                listaAvisosAtivos = emptyList()
-                                showAvisosPopup = true
-                            }
+                                SmallMenuCardAdulta(
+                                    title = "Frequência",
+                                    icon = Icons.Outlined.CheckCircle,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    encontroSelecionado = null
+                                    modoEdicaoFrequencia = false
+                                    showFrequenciaPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Turmas",
+                                    icon = Icons.Outlined.Groups,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    nomeTurmaSelecionada = null
+                                    modoCriarTurma = false
+                                    showTurmasPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Avisos",
+                                    icon = Icons.Outlined.Notifications,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    destinoAvisoSelecionado = null
+                                    idTurmaSelecionada = null
+                                    nomeTurmaSelecionada = null
+                                    novoAvisoTexto = ""
+                                    listaAvisosAtivos = emptyList()
+                                    showAvisosPopup = true
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -683,85 +697,85 @@ fun TurmaAdultaScreen(navController: NavController) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement =
-                                    Arrangement.spacedBy(8.dp)
+                                Arrangement.spacedBy(8.dp)
                             ) {
-                            SmallMenuCardAdulta(
-                                title = "Financeiro",
-                                icon = Icons.Outlined.Payments,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                crismandoSelecionado = null
-                                parcelaSelecionadaFinanceira = null
-                                catequistaResponsavelInput =
-                                    nomeCatequistaLogado
-                                showFinanceiroPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Dados",
-                                icon = Icons.Outlined.BarChart,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                exibirPorcentagemFalta = false
-                                showDadosPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Voltar",
-                                icon = Icons.Outlined.ArrowBack,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                navController.navigate("catequistaOptions") {
-                                    popUpTo("turmaAdultaScreen") {
-                                        inclusive = true
+                                SmallMenuCardAdulta(
+                                    title = "Financeiro",
+                                    icon = Icons.Outlined.Payments,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    crismandoSelecionado = null
+                                    parcelaSelecionadaFinanceira = null
+                                    catequistaResponsavelInput =
+                                        nomeCatequistaLogado
+                                    showFinanceiroPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Dados",
+                                    icon = Icons.Outlined.BarChart,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    exibirPorcentagemFalta = false
+                                    showDadosPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Voltar",
+                                    icon = Icons.Outlined.ArrowBack,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    navController.navigate("catequistaOptions") {
+                                        popUpTo("turmaAdultaScreen") {
+                                            inclusive = true
+                                        }
                                     }
                                 }
-                            }
                             }
                         } else {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement =
-                                    Arrangement.spacedBy(8.dp)
+                                Arrangement.spacedBy(8.dp)
                             ) {
-                            SmallMenuCardAdulta(
-                                title = "Frequência",
-                                icon = Icons.Outlined.CheckCircle,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                encontroSelecionado = null
-                                modoEdicaoFrequencia = false
-                                showFrequenciaPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Avisos",
-                                icon = Icons.Outlined.Notifications,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                nomeTurmaSelecionada = null
-                                novoAvisoTexto = ""
-                                listaAvisosAtivos = emptyList()
+                                SmallMenuCardAdulta(
+                                    title = "Frequência",
+                                    icon = Icons.Outlined.CheckCircle,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    encontroSelecionado = null
+                                    modoEdicaoFrequencia = false
+                                    showFrequenciaPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Avisos",
+                                    icon = Icons.Outlined.Notifications,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    nomeTurmaSelecionada = null
+                                    novoAvisoTexto = ""
+                                    listaAvisosAtivos = emptyList()
 
-                                // Catequista comum entra direto em "Sua Turma".
-                                destinoAvisoSelecionado =
-                                    DestinoAvisoAdulto.TURMA
+                                    // Catequista comum entra direto em "Sua Turma".
+                                    destinoAvisoSelecionado =
+                                        DestinoAvisoAdulto.TURMA
 
-                                showAvisosPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Financeiro",
-                                icon = Icons.Outlined.Payments,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                crismandoSelecionado = null
-                                parcelaSelecionadaFinanceira = null
-                                catequistaResponsavelInput =
-                                    nomeCatequistaLogado
-                                showFinanceiroPopup = true
-                            }
+                                    showAvisosPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Financeiro",
+                                    icon = Icons.Outlined.Payments,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    crismandoSelecionado = null
+                                    parcelaSelecionadaFinanceira = null
+                                    catequistaResponsavelInput =
+                                        nomeCatequistaLogado
+                                    showFinanceiroPopup = true
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
@@ -769,28 +783,28 @@ fun TurmaAdultaScreen(navController: NavController) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement =
-                                    Arrangement.spacedBy(8.dp)
+                                Arrangement.spacedBy(8.dp)
                             ) {
-                            SmallMenuCardAdulta(
-                                title = "Dados",
-                                icon = Icons.Outlined.BarChart,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                idTurmaSelecionada = null
-                                exibirPorcentagemFalta = false
-                                showDadosPopup = true
-                            }
-                            SmallMenuCardAdulta(
-                                title = "Voltar",
-                                icon = Icons.Outlined.ArrowBack,
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                navController.navigate("catequistaOptions") {
-                                    popUpTo("turmaAdultaScreen") {
-                                        inclusive = true
+                                SmallMenuCardAdulta(
+                                    title = "Dados",
+                                    icon = Icons.Outlined.BarChart,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    idTurmaSelecionada = null
+                                    exibirPorcentagemFalta = false
+                                    showDadosPopup = true
+                                }
+                                SmallMenuCardAdulta(
+                                    title = "Voltar",
+                                    icon = Icons.Outlined.ArrowBack,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    navController.navigate("catequistaOptions") {
+                                        popUpTo("turmaAdultaScreen") {
+                                            inclusive = true
+                                        }
                                     }
                                 }
-                            }
                                 Spacer(modifier = Modifier.weight(1f))
                             }
                         }
@@ -1792,7 +1806,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                             onClick = {
                                 val destinoPermitido =
                                     possuiPermissaoTotal ||
-                                        destinoAtual ==
+                                            destinoAtual ==
                                             DestinoAvisoAdulto.TURMA
 
                                 if (!destinoPermitido) {
@@ -1896,10 +1910,17 @@ fun TurmaAdultaScreen(navController: NavController) {
                 responsavelDocumentosInput = ""
             },
             onSalvar = {
-                val cadastro = if (abaDocumentosSelecionada == PerfilDocumentacao.CRISMANDO) {
+                val cadastro = if (
+                    abaDocumentosSelecionada == PerfilDocumentacao.CRISMANDO
+                ) {
                     cadastroDocumentosCrismando
                 } else {
-                    cadastroDocumentosPadrinho
+                    cadastroDocumentosPadrinho.copy(
+                        crismaPossui = true,
+                        primeiraComunhaoPossui = false,
+                        primeiraComunhaoEntregue = false,
+                        batismoEntregue = false
+                    )
                 }
 
                 if (responsavelDocumentosInput.isBlank()) {
@@ -1988,8 +2009,62 @@ fun TurmaAdultaScreen(navController: NavController) {
         )
     }
 
-    if (showSobreNosDialog) AlertDialog(onDismissRequest = { showSobreNosDialog = false }, confirmButton = { TextButton(onClick = { showSobreNosDialog = false }) { Text("OK", color = Crisma_Primary, fontWeight = FontWeight.Bold) } }, title = { Text("Sobre") }, text = { Text("CrismAPP - Gestão Catequética.") })
-    if (showContatosDialog) AlertDialog(onDismissRequest = { showContatosDialog = false }, confirmButton = { TextButton(onClick = { showContatosDialog = false }) { Text("OK", color = Crisma_Primary, fontWeight = FontWeight.Bold) } }, title = { Text("Contatos") }, text = { Text("Paróquia: (81) 98593-9076") })
+    if (showSobreNosDialog) {
+        AlertDialog(
+            onDismissRequest = { showSobreNosDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showSobreNosDialog = false }) {
+                    Text("Entendido", color = Crisma_Primary)
+                }
+            },
+            title = {
+                Text(
+                    text = "Sobre o CrismAPP",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "O CrismAPP foi idealizado para modernizar e fortalecer " +
+                            "a comunicação na jornada espiritual da nossa Paróquia.\n\n" +
+                            ". Desenvolvimento:\n" +
+                            "Emanuel Barbosa\n" +
+                            "(github.com/Emanuel-dev-silva)\n\n" +
+                            ". Gestão de Requisitos:\n" +
+                            "Victor Lima"
+                )
+            }
+        )
+    }
+
+    if (showContatosDialog) {
+        AlertDialog(
+            onDismissRequest = { showContatosDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showContatosDialog = false }) {
+                    Text("Fechar", color = Crisma_Primary)
+                }
+            },
+            title = {
+                Text(
+                    text = "Contatos",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Column {
+                    Text(
+                        text = ". Paróquia Santo Antônio\n" +
+                                "Tiúma, São Lourenço da Mata - PE\n\n" +
+                                ". Secretaria e WhatsApp:\n" +
+                                "(81) 9 8593-9076\n\n" +
+                                ". Horário de Atendimento:\n" +
+                                "Terça a Sábado: 08h às 12h"
+                    )
+                }
+            }
+        )
+    }
 
     if (idEncontroParaExcluir != null) {
         AlertDialog(
@@ -2274,6 +2349,20 @@ private fun CardAvisoAdministrativoAdulto(
         else -> Crisma_Primary
     }
 
+    val fundoAviso = when {
+        destino == "GERAL" ->
+            Color(0xFFFFF8D1)
+
+        destino == "CATEGORIA_JOVEM" ||
+                destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_JOVEM" ||
+                destino == "TURMA_ADULTA" ->
+            Color(0xFFE3F2FD)
+
+        else ->
+            Color(0xFFFFEBEE)
+    }
+
     val rotulo = when {
         destino == "GERAL" -> "AVISO GERAL"
 
@@ -2299,16 +2388,18 @@ private fun CardAvisoAdministrativoAdulto(
             .fillMaxWidth()
             .padding(vertical = 4.dp),
         colors = CardDefaults.cardColors(
-            containerColor = corAviso.copy(alpha = 0.10f)
+            containerColor = fundoAviso
         ),
         border = BorderStroke(
             width = 1.dp,
             color = corAviso
         ),
-        shape = RoundedCornerShape(6.dp)
+        shape = RoundedCornerShape(8.dp)
     ) {
         Row(
-            modifier = Modifier.padding(12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
@@ -2335,12 +2426,27 @@ private fun CardAvisoAdministrativoAdulto(
 
                 Spacer(modifier = Modifier.height(7.dp))
 
-                Text(
-                    text = aviso.texto,
-                    fontSize = 14.sp,
-                    color = Color.Black,
-                    fontWeight = FontWeight.Medium
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Notifications,
+                        contentDescription = null,
+                        tint = corAviso,
+                        modifier = Modifier.size(20.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Text(
+                        text = aviso.texto,
+                        modifier = Modifier.weight(1f),
+                        fontSize = 14.sp,
+                        color = Color.Black,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
             }
 
             IconButton(
@@ -2349,9 +2455,7 @@ private fun CardAvisoAdministrativoAdulto(
                 Icon(
                     imageVector = Icons.Outlined.Delete,
                     contentDescription = "Excluir aviso",
-                    tint = Crisma_Primary.copy(
-                        alpha = 0.75f
-                    )
+                    tint = Crisma_Primary.copy(alpha = 0.75f)
                 )
             }
         }
@@ -2423,39 +2527,77 @@ private fun DocumentosAdultoDialog(
                         item { DocumentoSecaoTitulo("Sacramentos") }
 
                         if (abaSelecionada == PerfilDocumentacao.PADRINHO) {
+                            /*
+                             * Todo padrinho precisa ser crismado.
+                             *
+                             * Por isso, nesta aba não existe mais escolha de
+                             * Primeira Comunhão ou Batismo. O único comprovante
+                             * sacramental exigido é o de Crisma.
+                             */
                             item {
-                                EscolhaSimNaoDocumento("Possui Crisma?", cadastroAtual.crismaPossui) { possui ->
-                                    atualizar(cadastroAtual.copy(crismaPossui = possui, crismaEntregue = if (possui) cadastroAtual.crismaEntregue else false))
+                                DocumentoSwitchLinha(
+                                    "Comprovante de Crisma entregue?",
+                                    cadastroAtual.crismaEntregue
+                                ) { entregue ->
+                                    atualizar(
+                                        cadastroAtual.copy(
+                                            crismaPossui = true,
+                                            crismaEntregue = entregue,
+                                            primeiraComunhaoPossui = false,
+                                            primeiraComunhaoEntregue = false,
+                                            batismoEntregue = false
+                                        )
+                                    )
                                 }
                             }
-                            if (cadastroAtual.crismaPossui) {
-                                item {
-                                    DocumentoSwitchLinha("Comprovante de Crisma entregue?", cadastroAtual.crismaEntregue) {
-                                        atualizar(cadastroAtual.copy(crismaEntregue = it))
-                                    }
+                        } else {
+                            /*
+                             * As opções de Primeira Comunhão e Batismo
+                             * continuam existindo somente para o crismando.
+                             */
+                            item {
+                                EscolhaSimNaoDocumento(
+                                    "Possui Primeira Comunhão?",
+                                    cadastroAtual.primeiraComunhaoPossui
+                                ) { possui ->
+                                    atualizar(
+                                        cadastroAtual.copy(
+                                            primeiraComunhaoPossui = possui,
+                                            primeiraComunhaoEntregue =
+                                            if (possui) {
+                                                cadastroAtual.primeiraComunhaoEntregue
+                                            } else {
+                                                false
+                                            }
+                                        )
+                                    )
                                 }
                             }
-                        }
 
-                        if (abaSelecionada == PerfilDocumentacao.CRISMANDO || !cadastroAtual.crismaPossui) {
-                            item {
-                                EscolhaSimNaoDocumento("Possui Primeira Comunhão?", cadastroAtual.primeiraComunhaoPossui) { possui ->
-                                    atualizar(cadastroAtual.copy(
-                                        primeiraComunhaoPossui = possui,
-                                        primeiraComunhaoEntregue = if (possui) cadastroAtual.primeiraComunhaoEntregue else false
-                                    ))
-                                }
-                            }
                             if (cadastroAtual.primeiraComunhaoPossui) {
                                 item {
-                                    DocumentoSwitchLinha("Comprovante de Primeira Comunhão entregue?", cadastroAtual.primeiraComunhaoEntregue) {
-                                        atualizar(cadastroAtual.copy(primeiraComunhaoEntregue = it))
+                                    DocumentoSwitchLinha(
+                                        "Comprovante de Primeira Comunhão entregue?",
+                                        cadastroAtual.primeiraComunhaoEntregue
+                                    ) { entregue ->
+                                        atualizar(
+                                            cadastroAtual.copy(
+                                                primeiraComunhaoEntregue = entregue
+                                            )
+                                        )
                                     }
                                 }
                             } else {
                                 item {
-                                    DocumentoSwitchLinha("Comprovante de Batismo entregue?", cadastroAtual.batismoEntregue) {
-                                        atualizar(cadastroAtual.copy(batismoEntregue = it))
+                                    DocumentoSwitchLinha(
+                                        "Comprovante de Batismo entregue?",
+                                        cadastroAtual.batismoEntregue
+                                    ) { entregue ->
+                                        atualizar(
+                                            cadastroAtual.copy(
+                                                batismoEntregue = entregue
+                                            )
+                                        )
                                     }
                                 }
                             }
