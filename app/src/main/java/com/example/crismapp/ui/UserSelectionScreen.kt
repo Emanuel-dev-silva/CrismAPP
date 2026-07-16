@@ -52,11 +52,6 @@ private val Light_Gray_Darker = Color(0xFFE0E0E0)
 private val Card_Border = Color(0xFFF0F0F0)
 private val customFont = FontFamily.Default
 
-private const val LINK_CATECISMO =
-    "https://www.vatican.va/archive/ccc/index_po.htm"
-
-private const val LINK_BIBLIA_AVE_MARIA =
-    "https://claretianos.com.br/biblia-ave-maria-online/"
 
 private data class AvisoGeralInicial(
     val id: String,
@@ -122,6 +117,12 @@ fun UserSelectionScreen(
 
     var carregandoAviso by remember {
         mutableStateOf(true)
+    }
+
+    var atalhosIniciais by remember {
+        mutableStateOf(
+            AtalhosIniciaisPadrao.lista()
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -238,6 +239,42 @@ fun UserSelectionScreen(
             listener.remove()
         }
     }
+
+    /*
+     * Os dois links são públicos e atualizados em tempo real.
+     * Caso ainda não exista configuração no Firestore, a tela
+     * utiliza automaticamente os endereços originais.
+     */
+    DisposableEffect(Unit) {
+        val listener =
+            FirebaseRepository.ouvirAtalhosIniciais(
+                onUpdate = { configuracoes ->
+                    atalhosIniciais = configuracoes
+                },
+                onError = {
+                    atalhosIniciais =
+                        AtalhosIniciaisPadrao.lista()
+                }
+            )
+
+        onDispose {
+            listener.remove()
+        }
+    }
+
+    val atalhoBiblia = atalhosIniciais
+        .firstOrNull {
+            it.id ==
+                    AtalhosIniciaisPadrao.ID_BIBLIA
+        }
+        ?: AtalhosIniciaisPadrao.biblia()
+
+    val atalhoCatecismo = atalhosIniciais
+        .firstOrNull {
+            it.id ==
+                    AtalhosIniciaisPadrao.ID_CATECISMO
+        }
+        ?: AtalhosIniciaisPadrao.catecismo()
 
     Box(
         modifier = Modifier.fillMaxSize()
@@ -500,14 +537,17 @@ fun UserSelectionScreen(
                             Arrangement.spacedBy(7.dp)
                         ) {
                             AtalhoInicialCard(
-                                titulo = "Bíblia",
-                                descricao = "Ave-Maria",
-                                icone = Icons.Outlined.MenuBook,
+                                titulo = atalhoBiblia.titulo,
+                                descricao =
+                                atalhoBiblia.descricao,
+                                icone = iconeAtalhoInicial(
+                                    atalhoBiblia.iconeCodigo
+                                ),
                                 modifier = Modifier.weight(1f),
                                 onClick = {
                                     runCatching {
                                         uriHandler.openUri(
-                                            LINK_BIBLIA_AVE_MARIA
+                                            atalhoBiblia.url
                                         )
                                     }
                                 }
@@ -525,14 +565,17 @@ fun UserSelectionScreen(
                             )
 
                             AtalhoInicialCard(
-                                titulo = "Catecismo",
-                                descricao = "Igreja Católica",
-                                icone = Icons.Outlined.School,
+                                titulo = atalhoCatecismo.titulo,
+                                descricao =
+                                atalhoCatecismo.descricao,
+                                icone = iconeAtalhoInicial(
+                                    atalhoCatecismo.iconeCodigo
+                                ),
                                 modifier = Modifier.weight(1f),
                                 onClick = {
                                     runCatching {
                                         uriHandler.openUri(
-                                            LINK_CATECISMO
+                                            atalhoCatecismo.url
                                         )
                                     }
                                 }
@@ -759,8 +802,8 @@ private fun AtalhoInicialCard(
         enabled = !carregando,
         modifier = modifier.height(68.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White,
-            disabledContainerColor = Color.White
+            containerColor = Color(0xFFF8F8F8),
+            disabledContainerColor = Color(0xFFF8F8F8)
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp,
@@ -768,7 +811,7 @@ private fun AtalhoInicialCard(
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = Card_Border
+            color = Color(0xFFEEEEEE)
         ),
         shape = RoundedCornerShape(10.dp)
     ) {
@@ -883,7 +926,7 @@ fun ExitMenuCard(
         onClick = onClick,
         modifier = modifier.height(42.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = Color(0xFFF8F8F8)
         ),
         elevation = CardDefaults.cardElevation(
             defaultElevation = 2.dp,
@@ -891,7 +934,7 @@ fun ExitMenuCard(
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = Card_Border
+            color = Color(0xFFEEEEEE)
         ),
         shape = RoundedCornerShape(10.dp)
     ) {

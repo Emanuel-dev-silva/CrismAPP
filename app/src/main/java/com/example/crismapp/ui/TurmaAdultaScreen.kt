@@ -32,6 +32,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -131,6 +132,9 @@ fun TurmaAdultaScreen(navController: NavController) {
     var showFrequenciaPopup by remember { mutableStateOf(false) }
     var showTurmasPopup by remember { mutableStateOf(false) }
     var showDocumentosDialog by remember { mutableStateOf(false) }
+    var showAtalhosDialog by remember {
+        mutableStateOf(false)
+    }
 
     var crismandoDocumentosSelecionado by remember { mutableStateOf<Crismando?>(null) }
     var abaDocumentosSelecionada by remember { mutableStateOf(PerfilDocumentacao.CRISMANDO) }
@@ -206,12 +210,25 @@ fun TurmaAdultaScreen(navController: NavController) {
     var animarTextos by remember { mutableStateOf(false) }
     var animarBotoesAcao by remember { mutableStateOf(false) }
 
+    var atalhosIniciais by remember {
+        mutableStateOf(
+            AtalhosIniciaisPadrao.lista()
+        )
+    }
+    var carregandoAtalhos by remember {
+        mutableStateOf(true)
+    }
+    var salvandoAtalho by remember {
+        mutableStateOf(false)
+    }
+
     val visualTransformationData = remember { MascaraDataTransformationAdulta() }
 
     LaunchedEffect(possuiPermissaoTotal) {
         if (!possuiPermissaoTotal) {
             showTurmasPopup = false
             showDocumentosDialog = false
+            showAtalhosDialog = false
             crismandoDocumentosSelecionado = null
             crismandoParaArquivar = null
             idTurmaParaExcluir = null
@@ -272,6 +289,30 @@ fun TurmaAdultaScreen(navController: NavController) {
             liberarBotaoFinanceiroEtapa2 = false
             delay(2000)
             liberarBotaoFinanceiroEtapa2 = true
+        }
+    }
+
+    /*
+     * Configuração compartilhada dos botões da primeira tela.
+     * Alterar pela turma jovem ou adulta modifica os mesmos
+     * documentos no Firestore.
+     */
+    DisposableEffect(Unit) {
+        val listener =
+            FirebaseRepository.ouvirAtalhosIniciais(
+                onUpdate = { configuracoes ->
+                    atalhosIniciais = configuracoes
+                    carregandoAtalhos = false
+                },
+                onError = {
+                    atalhosIniciais =
+                        AtalhosIniciaisPadrao.lista()
+                    carregandoAtalhos = false
+                }
+            )
+
+        onDispose {
+            listener.remove()
         }
     }
 
@@ -660,7 +701,8 @@ fun TurmaAdultaScreen(navController: NavController) {
                             ) {
                                 SmallMenuCardAdulta(
                                     title = "Frequência",
-                                    icon = Icons.Outlined.CheckCircle,
+                                    icon =
+                                    Icons.Outlined.CheckCircle,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     idTurmaSelecionada = null
@@ -668,6 +710,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                     modoEdicaoFrequencia = false
                                     showFrequenciaPopup = true
                                 }
+
                                 SmallMenuCardAdulta(
                                     title = "Turmas",
                                     icon = Icons.Outlined.Groups,
@@ -678,9 +721,11 @@ fun TurmaAdultaScreen(navController: NavController) {
                                     modoCriarTurma = false
                                     showTurmasPopup = true
                                 }
+
                                 SmallMenuCardAdulta(
                                     title = "Avisos",
-                                    icon = Icons.Outlined.Notifications,
+                                    icon =
+                                    Icons.Outlined.Notifications,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     destinoAvisoSelecionado = null
@@ -692,7 +737,9 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -706,26 +753,30 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 ) {
                                     idTurmaSelecionada = null
                                     crismandoSelecionado = null
-                                    parcelaSelecionadaFinanceira = null
+                                    parcelaSelecionadaFinanceira =
+                                        null
                                     catequistaResponsavelInput =
                                         nomeCatequistaLogado
                                     showFinanceiroPopup = true
                                 }
+
                                 SmallMenuCardAdulta(
-                                    title = "Dados",
-                                    icon = Icons.Outlined.BarChart,
+                                    title = "Links",
+                                    icon = Icons.Outlined.Link,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    idTurmaSelecionada = null
-                                    exibirPorcentagemFalta = false
-                                    showDadosPopup = true
+                                    showAtalhosDialog = true
                                 }
+
                                 SmallMenuCardAdulta(
                                     title = "Voltar",
-                                    icon = Icons.Outlined.ArrowBack,
+                                    icon =
+                                    Icons.Outlined.ArrowBack,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    navController.navigate("catequistaOptions") {
+                                    navController.navigate(
+                                        "catequistaOptions"
+                                    ) {
                                         popUpTo("turmaAdultaScreen") {
                                             inclusive = true
                                         }
@@ -740,7 +791,8 @@ fun TurmaAdultaScreen(navController: NavController) {
                             ) {
                                 SmallMenuCardAdulta(
                                     title = "Frequência",
-                                    icon = Icons.Outlined.CheckCircle,
+                                    icon =
+                                    Icons.Outlined.CheckCircle,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     idTurmaSelecionada = null
@@ -748,37 +800,26 @@ fun TurmaAdultaScreen(navController: NavController) {
                                     modoEdicaoFrequencia = false
                                     showFrequenciaPopup = true
                                 }
+
                                 SmallMenuCardAdulta(
                                     title = "Avisos",
-                                    icon = Icons.Outlined.Notifications,
+                                    icon =
+                                    Icons.Outlined.Notifications,
                                     modifier = Modifier.weight(1f)
                                 ) {
+                                    destinoAvisoSelecionado =
+                                        DestinoAvisoAdulto.TURMA
                                     idTurmaSelecionada = null
                                     nomeTurmaSelecionada = null
                                     novoAvisoTexto = ""
                                     listaAvisosAtivos = emptyList()
-
-                                    // Catequista comum entra direto em "Sua Turma".
-                                    destinoAvisoSelecionado =
-                                        DestinoAvisoAdulto.TURMA
-
                                     showAvisosPopup = true
-                                }
-                                SmallMenuCardAdulta(
-                                    title = "Financeiro",
-                                    icon = Icons.Outlined.Payments,
-                                    modifier = Modifier.weight(1f)
-                                ) {
-                                    idTurmaSelecionada = null
-                                    crismandoSelecionado = null
-                                    parcelaSelecionadaFinanceira = null
-                                    catequistaResponsavelInput =
-                                        nomeCatequistaLogado
-                                    showFinanceiroPopup = true
                                 }
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(
+                                modifier = Modifier.height(8.dp)
+                            )
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -786,32 +827,83 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 Arrangement.spacedBy(8.dp)
                             ) {
                                 SmallMenuCardAdulta(
-                                    title = "Dados",
-                                    icon = Icons.Outlined.BarChart,
+                                    title = "Financeiro",
+                                    icon = Icons.Outlined.Payments,
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     idTurmaSelecionada = null
-                                    exibirPorcentagemFalta = false
-                                    showDadosPopup = true
+                                    crismandoSelecionado = null
+                                    parcelaSelecionadaFinanceira =
+                                        null
+                                    catequistaResponsavelInput =
+                                        nomeCatequistaLogado
+                                    showFinanceiroPopup = true
                                 }
+
                                 SmallMenuCardAdulta(
                                     title = "Voltar",
-                                    icon = Icons.Outlined.ArrowBack,
+                                    icon =
+                                    Icons.Outlined.ArrowBack,
                                     modifier = Modifier.weight(1f)
                                 ) {
-                                    navController.navigate("catequistaOptions") {
+                                    navController.navigate(
+                                        "catequistaOptions"
+                                    ) {
                                         popUpTo("turmaAdultaScreen") {
                                             inclusive = true
                                         }
                                     }
                                 }
-                                Spacer(modifier = Modifier.weight(1f))
                             }
                         }
                     }
                 }
             }
         }
+    }
+
+    if (
+        showAtalhosDialog &&
+        possuiPermissaoTotal
+    ) {
+        EditorAtalhosIniciaisDialog(
+            configuracoes = atalhosIniciais,
+            carregando = carregandoAtalhos,
+            salvando = salvandoAtalho,
+            onDismiss = {
+                if (!salvandoAtalho) {
+                    showAtalhosDialog = false
+                }
+            },
+            onSalvar = { configuracao ->
+                salvandoAtalho = true
+
+                FirebaseRepository.salvarAtalhoInicial(
+                    configuracao = configuracao,
+                    responsavel =
+                    nomeCatequistaLogado,
+                    onSuccess = {
+                        salvandoAtalho = false
+
+                        Toast.makeText(
+                            context,
+                            "Link atualizado na primeira tela.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    },
+                    onError = { erro ->
+                        salvandoAtalho = false
+
+                        Toast.makeText(
+                            context,
+                            erro.message
+                                ?: "Não foi possível salvar o link.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
+            }
+        )
     }
 
     if (showTurmasPopup && possuiPermissaoTotal) {
@@ -851,13 +943,13 @@ fun TurmaAdultaScreen(navController: NavController) {
                         },
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) { Text("Criar Turma", fontWeight = FontWeight.Bold) }
                     TextButton(onClick = { modoCriarTurma = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar", color = Color.Gray) }
                 }
             } else if (idTurmaSelecionada == null) {
                 items(listaTurmasFirestore) { turma ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFF0F0F0)), shape = RoundedCornerShape(10.dp)) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
                             IconButton(onClick = {
@@ -875,7 +967,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                     }
                 }
                 item {
-                    Button(onClick = { modoCriarTurma = true }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary), shape = RoundedCornerShape(4.dp)) {
+                    Button(onClick = { modoCriarTurma = true }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary), shape = RoundedCornerShape(10.dp)) {
                         Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Nova Turma", fontWeight = FontWeight.Bold)
                     }
                 }
@@ -920,7 +1012,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                     Spacer(modifier = Modifier.height(16.dp))
                 }
                 items(listaCrismandosFirestore) { crismando ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), shape = RoundedCornerShape(4.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
                         Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(crismando.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold)
@@ -951,128 +1043,340 @@ fun TurmaAdultaScreen(navController: NavController) {
 
     if (showFrequenciaPopup) {
         val titFreq = when {
-            encontroSelecionado != null -> "Encontro $encontroSelecionado - ${listaEncontrosFirestore.firstOrNull { it.numero == encontroSelecionado }?.dataManual ?: ""}"
-            idTurmaSelecionada != null -> "Encontros: $nomeTurmaSelecionada"
-            else -> "Frequência - Selecione a Turma"
+            encontroSelecionado != null ->
+                "Encontro $encontroSelecionado - ${
+                    listaEncontrosFirestore
+                        .firstOrNull {
+                            it.numero == encontroSelecionado
+                        }
+                        ?.dataManual
+                        .orEmpty()
+                }"
+
+            idTurmaSelecionada != null ->
+                "Encontros: $nomeTurmaSelecionada"
+
+            else ->
+                "Frequência - selecione a turma"
         }
-        CustomPopupAdulta(title = titFreq, onDismiss = { showFrequenciaPopup = false; idTurmaSelecionada = null; encontroSelecionado = null; idEncontroEmEdicao = null; modoEdicaoFrequencia = false }) {
+
+        CustomPopupAdulta(
+            title = titFreq,
+            onDismiss = {
+                showFrequenciaPopup = false
+                idTurmaSelecionada = null
+                nomeTurmaSelecionada = null
+                encontroSelecionado = null
+                idEncontroEmEdicao = null
+                modoEdicaoFrequencia = false
+            }
+        ) {
             if (idTurmaSelecionada == null) {
+                item {
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo = "Selecione uma turma",
+                        descricao =
+                        "Escolha a turma para consultar encontros e preencher a frequência.",
+                        icone = Icons.Outlined.Groups
+                    )
+                }
+
                 items(listaTurmasFirestore) { turma ->
-                    Card(
+                    CardSelecaoGestaoAdulto(
+                        titulo = turma.nome,
+                        descricao =
+                        "Abrir encontros e chamada desta turma",
+                        icone = Icons.Outlined.Groups,
                         onClick = {
                             idTurmaSelecionada = turma.id
                             nomeTurmaSelecionada = turma.nome
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-                        shape = RoundedCornerShape(4.dp)
-                    ) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Icons.Outlined.ArrowForwardIos, null, modifier = Modifier.size(14.dp), tint = Crisma_Primary)}
+                        }
+                    )
+                }
+
+                if (listaTurmasFirestore.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Nenhuma turma cadastrada.",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             } else if (encontroSelecionado == null) {
                 item {
-                    TextButton(onClick = { idTurmaSelecionada = null; nomeTurmaSelecionada = null }) {
-                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
-                        Text(" Voltar para Turmas", color = Crisma_Primary)
-                    }
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para as turmas",
+                        onClick = {
+                            idTurmaSelecionada = null
+                            nomeTurmaSelecionada = null
+                        }
+                    )
+
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo = "Encontros da turma",
+                        descricao =
+                        "Selecione um encontro para abrir a chamada ou adicione uma nova data.",
+                        icone = Icons.Outlined.DateRange
+                    )
                 }
 
                 items(listaEncontrosFirestore) { encontro ->
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-                        border = BorderStroke(1.dp, Color(0xFFEEEEEE)),
-                        shape = RoundedCornerShape(4.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8F8F8)
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFEEEEEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 0.dp
+                        ),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f).clickable { encontroSelecionado = encontro.numero }) {
-                                Text("Encontro ${encontro.numero} - ${encontro.dataManual}", color = Color.Black, fontWeight = FontWeight.Medium)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = 12.dp,
+                                    vertical = 9.dp
+                                ),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.DateRange,
+                                contentDescription = null,
+                                tint = Crisma_Primary,
+                                modifier = Modifier.size(21.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Column(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .clickable {
+                                        encontroSelecionado =
+                                            encontro.numero
+                                    }
+                            ) {
+                                Text(
+                                    text = "Encontro ${encontro.numero}",
+                                    color = Color.Black,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text = encontro.dataManual,
+                                    color = Color(0xFF666666),
+                                    fontSize = 10.sp
+                                )
                             }
 
-                            Row {
-                                IconButton(onClick = {
+                            IconButton(
+                                onClick = {
                                     idEncontroEmEdicao = encontro.id
-                                    dataEncontroEdicaoInput = encontro.dataManual.filter { it.isDigit() }
-                                }) {
-                                    Icon(Icons.Outlined.Edit, "Editar Data", tint = Color.Gray, modifier = Modifier.size(20.dp))
-                                }
+                                    dataEncontroEdicaoInput =
+                                        encontro.dataManual
+                                            .filter { it.isDigit() }
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Edit,
+                                    contentDescription = "Editar data",
+                                    tint = Color(0xFF666666),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
 
-                                IconButton(onClick = {
+                            IconButton(
+                                onClick = {
                                     idEncontroParaExcluir = encontro.id
-                                    numeroEncontroParaExcluir = encontro.numero
-                                }) {
-                                    Icon(Icons.Outlined.Delete, "Excluir Encontro", tint = Color.Red.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
-                                }
+                                    numeroEncontroParaExcluir =
+                                        encontro.numero
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Delete,
+                                    contentDescription =
+                                    "Excluir encontro",
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(19.dp)
+                                )
                             }
                         }
                     }
 
                     if (idEncontroEmEdicao == encontro.id) {
                         Card(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFDFDFD)),
-                            border = BorderStroke(1.dp, Crisma_Gold),
-                            shape = RoundedCornerShape(4.dp)
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(
+                                containerColor = Color(0xFFFFFBE8)
+                            ),
+                            border = BorderStroke(
+                                width = 1.dp,
+                                color = Crisma_Gold
+                            ),
+                            elevation = CardDefaults.cardElevation(0.dp),
+                            shape = RoundedCornerShape(10.dp)
                         ) {
-                            Row(modifier = Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(10.dp)
+                            ) {
+                                Text(
+                                    text = "Editar data do encontro",
+                                    color = Color.Black,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Spacer(modifier = Modifier.height(7.dp))
+
                                 OutlinedTextField(
                                     value = dataEncontroEdicaoInput,
-                                    onValueChange = { newValue ->
-                                        val puros = newValue.filter { it.isDigit() }
-                                        if (puros.length <= 8 && validarDigitosDataAdulta(puros)) {
-                                            dataEncontroEdicaoInput = puros
+                                    onValueChange = { novoValor ->
+                                        val puros =
+                                            novoValor.filter {
+                                                it.isDigit()
+                                            }
+
+                                        if (
+                                            puros.length <= 8 &&
+                                            validarDigitosDataAdulta(puros)
+                                        ) {
+                                            dataEncontroEdicaoInput =
+                                                puros
                                         }
                                     },
-                                    placeholder = { Text("Nova data (DDMMAAAA)...") },
-                                    modifier = Modifier.weight(1f),
+                                    label = {
+                                        Text("Nova data")
+                                    },
+                                    placeholder = {
+                                        Text("DDMMAAAA")
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
                                     singleLine = true,
-                                    visualTransformation = visualTransformationData
+                                    visualTransformation =
+                                    visualTransformationData,
+                                    shape = RoundedCornerShape(10.dp),
+                                    colors =
+                                    OutlinedTextFieldDefaults.colors(
+                                        focusedContainerColor =
+                                        Color(0xFFFBFBFB),
+                                        unfocusedContainerColor =
+                                        Color(0xFFFBFBFB),
+                                        focusedBorderColor =
+                                        Crisma_Primary,
+                                        unfocusedBorderColor =
+                                        Color(0xFFE2E2E2),
+                                        cursorColor =
+                                        Crisma_Primary
+                                    )
                                 )
-                                Spacer(modifier = Modifier.width(6.dp))
+
+                                Spacer(modifier = Modifier.height(7.dp))
+
                                 Button(
                                     onClick = {
-                                        if (dataEncontroEdicaoInput.length == 8) {
-                                            val anoInserido = dataEncontroEdicaoInput.substring(4, 8).toIntOrNull() ?: 0
-                                            if (anoInserido < 2026) {
-                                                Toast.makeText(context, "O ano não pode ser menor que 2026!", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                val dataComBarras = StringBuilder(dataEncontroEdicaoInput)
-                                                    .insert(2, "/").insert(5, "/").toString()
+                                        if (
+                                            dataEncontroEdicaoInput
+                                                .length == 8
+                                        ) {
+                                            val anoInserido =
+                                                dataEncontroEdicaoInput
+                                                    .substring(4, 8)
+                                                    .toIntOrNull()
+                                                    ?: 0
 
-                                                FirebaseRepository.atualizarDataEncontro(
-                                                    encontroId = encontro.id,
-                                                    dataManual = dataComBarras,
-                                                    onSuccess = {
-                                                        Toast.makeText(
-                                                            context,
-                                                            "Data atualizada!",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                        idEncontroEmEdicao = null
-                                                    },
-                                                    onError = { erro ->
-                                                        Toast.makeText(
-                                                            context,
-                                                            erro.message ?: "Erro ao atualizar a data.",
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
-                                                    }
-                                                )
+                                            if (anoInserido < 2026) {
+                                                Toast.makeText(
+                                                    context,
+                                                    "O ano não pode ser menor que 2026!",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            } else {
+                                                val dataComBarras =
+                                                    StringBuilder(
+                                                        dataEncontroEdicaoInput
+                                                    )
+                                                        .insert(2, "/")
+                                                        .insert(5, "/")
+                                                        .toString()
+
+                                                FirebaseRepository
+                                                    .atualizarDataEncontro(
+                                                        encontroId =
+                                                        encontro.id,
+                                                        dataManual =
+                                                        dataComBarras,
+                                                        onSuccess = {
+                                                            Toast
+                                                                .makeText(
+                                                                    context,
+                                                                    "Data atualizada!",
+                                                                    Toast.LENGTH_SHORT
+                                                                )
+                                                                .show()
+
+                                                            idEncontroEmEdicao =
+                                                                null
+                                                        },
+                                                        onError = {
+                                                                erro ->
+                                                            Toast
+                                                                .makeText(
+                                                                    context,
+                                                                    erro.message
+                                                                        ?: "Erro ao atualizar a data.",
+                                                                    Toast.LENGTH_SHORT
+                                                                )
+                                                                .show()
+                                                        }
+                                                    )
                                             }
                                         } else {
-                                            Toast.makeText(context, "Digite os 8 números da data!", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(
+                                                context,
+                                                "Digite os 8 números da data!",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
                                         }
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                                    contentPadding = PaddingValues(horizontal = 8.dp),
-                                    shape = RoundedCornerShape(4.dp)
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor =
+                                        Crisma_Primary
+                                    ),
+                                    shape = RoundedCornerShape(10.dp)
                                 ) {
-                                    Text("Salvar", fontSize = 12.sp)
+                                    Icon(
+                                        imageVector =
+                                        Icons.Outlined.Save,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+
+                                    Spacer(
+                                        modifier = Modifier.width(7.dp)
+                                    )
+
+                                    Text(
+                                        text = "Salvar nova data",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -1080,162 +1384,460 @@ fun TurmaAdultaScreen(navController: NavController) {
                 }
 
                 item {
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 12.dp)) {
-                        OutlinedTextField(
-                            value = novaDataEncontroInput,
-                            onValueChange = { newValue ->
-                                val puros = newValue.filter { it.isDigit() }
-                                if (puros.length <= 8 && validarDigitosDataAdulta(puros)) {
-                                    novaDataEncontroInput = puros
-                                }
-                            },
-                            placeholder = { Text("Digite a data (Ex: 22062026)...") },
-                            label = { Text("Data do Encontro") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            visualTransformation = visualTransformationData
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(
-                            onClick = {
-                                if (novaDataEncontroInput.length == 8) {
-                                    val anoInserido = novaDataEncontroInput.substring(4, 8).toIntOrNull() ?: 0
-                                    if (anoInserido < 2026) {
-                                        Toast.makeText(context, "O ano não pode ser menor que 2026!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        val proximoNumero =
-                                            (listaEncontrosFirestore.maxOfOrNull { it.numero } ?: 0) + 1
-
-                                        val dataComBarras = StringBuilder(novaDataEncontroInput)
-                                            .insert(2, "/")
-                                            .insert(5, "/")
-                                            .toString()
-
-                                        FirebaseRepository.salvarEncontro(
-                                            turmaId = idTurmaSelecionada!!,
-                                            numero = proximoNumero,
-                                            dataManual = dataComBarras,
-                                            onSuccess = {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Encontro $proximoNumero adicionado!",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                novaDataEncontroInput = ""
-                                            },
-                                            onError = { erro ->
-                                                Toast.makeText(
-                                                    context,
-                                                    erro.message ?: "Erro ao adicionar o encontro.",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                            }
-                                        )
-                                    }
-                                } else {
-                                    Toast.makeText(context, "Digite a data completa com 8 números!", Toast.LENGTH_SHORT).show()
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                            shape = RoundedCornerShape(4.dp)
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8F8F8)
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFEEEEEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
                         ) {
-                            Icon(Icons.Outlined.Add, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("Adicionar Encontro", fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment =
+                                Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = null,
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.width(8.dp)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = "Adicionar encontro",
+                                        color = Color.Black,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Text(
+                                        text =
+                                        "Informe a data do próximo encontro.",
+                                        color = Color(0xFF666666),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(9.dp))
+
+                            OutlinedTextField(
+                                value = novaDataEncontroInput,
+                                onValueChange = { novoValor ->
+                                    val puros =
+                                        novoValor.filter {
+                                            it.isDigit()
+                                        }
+
+                                    if (
+                                        puros.length <= 8 &&
+                                        validarDigitosDataAdulta(puros)
+                                    ) {
+                                        novaDataEncontroInput = puros
+                                    }
+                                },
+                                label = {
+                                    Text("Data do encontro")
+                                },
+                                placeholder = {
+                                    Text("DDMMAAAA")
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation =
+                                visualTransformationData,
+                                shape = RoundedCornerShape(10.dp),
+                                colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    unfocusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    focusedBorderColor =
+                                    Crisma_Primary,
+                                    unfocusedBorderColor =
+                                    Color(0xFFE2E2E2),
+                                    cursorColor =
+                                    Crisma_Primary
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Button(
+                                onClick = {
+                                    if (
+                                        novaDataEncontroInput.length == 8
+                                    ) {
+                                        val anoInserido =
+                                            novaDataEncontroInput
+                                                .substring(4, 8)
+                                                .toIntOrNull()
+                                                ?: 0
+
+                                        if (anoInserido < 2026) {
+                                            Toast.makeText(
+                                                context,
+                                                "O ano não pode ser menor que 2026!",
+                                                Toast.LENGTH_SHORT
+                                            ).show()
+                                        } else {
+                                            val proximoNumero =
+                                                (
+                                                        listaEncontrosFirestore
+                                                            .maxOfOrNull {
+                                                                it.numero
+                                                            }
+                                                            ?: 0
+                                                        ) + 1
+
+                                            val dataComBarras =
+                                                StringBuilder(
+                                                    novaDataEncontroInput
+                                                )
+                                                    .insert(2, "/")
+                                                    .insert(5, "/")
+                                                    .toString()
+
+                                            FirebaseRepository
+                                                .salvarEncontro(
+                                                    turmaId =
+                                                    idTurmaSelecionada!!,
+                                                    numero =
+                                                    proximoNumero,
+                                                    dataManual =
+                                                    dataComBarras,
+                                                    onSuccess = {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Encontro $proximoNumero adicionado!",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+
+                                                        novaDataEncontroInput =
+                                                            ""
+                                                    },
+                                                    onError = {
+                                                            erro ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            erro.message
+                                                                ?: "Erro ao adicionar o encontro.",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    }
+                                                )
+                                        }
+                                    } else {
+                                        Toast.makeText(
+                                            context,
+                                            "Digite a data completa com 8 números!",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor =
+                                    Crisma_Primary
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(17.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(7.dp))
+
+                                Text(
+                                    text = "Adicionar encontro",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
             } else {
                 item {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        TextButton(onClick = { encontroSelecionado = null; modoEdicaoFrequencia = false }) {
-                            Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
-                            Text(" Voltar para Encontros", color = Crisma_Primary)
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para os encontros",
+                        onClick = {
+                            encontroSelecionado = null
+                            modoEdicaoFrequencia = false
                         }
+                    )
 
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor =
+                            if (modoEdicaoFrequencia) {
+                                Color(0xFFFFF8F8)
+                            } else {
+                                Color(0xFFF8F8F8)
+                            }
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color =
+                            if (modoEdicaoFrequencia) {
+                                Crisma_Primary.copy(alpha = 0.55f)
+                            } else {
+                                Color(0xFFEEEEEE)
+                            }
+                        ),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
-                                .padding(horizontal = 12.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
+                                .padding(
+                                    horizontal = 12.dp,
+                                    vertical = 9.dp
+                                ),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Outlined.Edit, null, tint = Crisma_Primary, modifier = Modifier.size(20.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("Preencher", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.DarkGray)
+                            Icon(
+                                imageVector = Icons.Outlined.Edit,
+                                contentDescription = null,
+                                tint = Crisma_Primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(9.dp))
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text =
+                                    if (modoEdicaoFrequencia) {
+                                        "Preenchimento ativado"
+                                    } else {
+                                        "Ative para preencher"
+                                    },
+                                    color = Color.Black,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text =
+                                    if (modoEdicaoFrequencia) {
+                                        "Marque a situação de cada crismando."
+                                    } else {
+                                        "Os registros estão somente para consulta."
+                                    },
+                                    color = Color(0xFF666666),
+                                    fontSize = 10.sp,
+                                    lineHeight = 12.sp
+                                )
                             }
+
                             Switch(
                                 checked = modoEdicaoFrequencia,
-                                onCheckedChange = { modoEdicaoFrequencia = it },
-                                colors = SwitchDefaults.colors(checkedThumbColor = Color.White, checkedTrackColor = Color(0xFF2E7D32))
+                                onCheckedChange = {
+                                    modoEdicaoFrequencia = it
+                                },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color.White,
+                                    checkedTrackColor = Crisma_Primary,
+                                    uncheckedThumbColor =
+                                    Color(0xFF888888),
+                                    uncheckedTrackColor =
+                                    Color(0xFFE5E5E5),
+                                    uncheckedBorderColor =
+                                    Color(0xFFD5D5D5)
+                                )
                             )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
                 items(listaCrismandosFirestore) { crismando ->
-                    val chaveMap = "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
-                    val status = frequenciaPorEncontro[chaveMap] ?: StatusFrequencia.NENHUM
+                    val chaveMap =
+                        "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
 
-                    val factorOpacity = if (modoEdicaoFrequencia) 1.0f else 0.4f
+                    val status =
+                        frequenciaPorEncontro[chaveMap]
+                            ?: StatusFrequencia.NENHUM
 
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFF0F0F0)), shape = RoundedCornerShape(4.dp)) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(crismando.nome, fontWeight = FontWeight.Bold, color = Color.Black.copy(alpha = if (modoEdicaoFrequencia) 1.0f else 0.6f), fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
+                    val statusTexto = when (status) {
+                        StatusFrequencia.PRESENTE -> "Presente"
+                        StatusFrequencia.FALTA -> "Falta"
+                        StatusFrequencia.JUSTIFICADA ->
+                            "Justificada"
 
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Button(
-                                    onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.PRESENTE },
-                                    enabled = modoEdicaoFrequencia,
-                                    modifier = Modifier.weight(1f).height(36.dp),
-                                    contentPadding = PaddingValues(0.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if(status == StatusFrequencia.PRESENTE) Color(0xFF2E7D32) else Color(0xFFE8F5E9),
-                                        contentColor = if(status == StatusFrequencia.PRESENTE) Color.White else Color(0xFF2E7D32),
-                                        disabledContainerColor = if(status == StatusFrequencia.PRESENTE) Color(0xFF2E7D32).copy(alpha = factorOpacity) else Color(0xFFE8F5E9).copy(alpha = factorOpacity),
-                                        disabledContentColor = if(status == StatusFrequencia.PRESENTE) Color.White.copy(alpha = factorOpacity) else Color(0xFF2E7D32).copy(alpha = factorOpacity)
-                                    ),
-                                    shape = RoundedCornerShape(4.dp)
+                        StatusFrequencia.NENHUM ->
+                            "Não preenchido"
+                    }
+
+                    val statusCor = when (status) {
+                        StatusFrequencia.PRESENTE ->
+                            Color(0xFF333333)
+
+                        StatusFrequencia.FALTA ->
+                            Crisma_Primary
+
+                        StatusFrequencia.JUSTIFICADA ->
+                            Color(0xFF8A6D00)
+
+                        StatusFrequencia.NENHUM ->
+                            Color(0xFF777777)
+                    }
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8F8F8)
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFEEEEEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(11.dp)
+                        ) {
+                            Row(
+                                verticalAlignment =
+                                Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector =
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(19.dp)
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.width(8.dp)
+                                )
+
+                                Text(
+                                    text = crismando.nome,
+                                    color = Color.Black,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                Surface(
+                                    color =
+                                    statusCor.copy(alpha = 0.10f),
+                                    shape =
+                                    RoundedCornerShape(20.dp),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        statusCor.copy(alpha = 0.35f)
+                                    )
                                 ) {
-                                    Text("PRESENTE", fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = statusTexto,
+                                        color = statusCor,
+                                        fontSize = 9.sp,
+                                        fontWeight =
+                                        FontWeight.Bold,
+                                        modifier = Modifier.padding(
+                                            horizontal = 8.dp,
+                                            vertical = 4.dp
+                                        )
+                                    )
                                 }
+                            }
 
-                                Button(
-                                    onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.FALTA },
-                                    enabled = modoEdicaoFrequencia,
-                                    modifier = Modifier.weight(1f).height(36.dp),
-                                    contentPadding = PaddingValues(0.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if(status == StatusFrequencia.FALTA) Color(0xFFFF0000) else Color(0xFFFFEBEE),
-                                        contentColor = if(status == StatusFrequencia.FALTA) Color.White else Color(0xFFFF0000),
-                                        disabledContainerColor = if(status == StatusFrequencia.FALTA) Color(0xFFFF0000).copy(alpha = factorOpacity) else Color(0xFFFFEBEE).copy(alpha = factorOpacity),
-                                        disabledContentColor = if(status == StatusFrequencia.FALTA) Color.White.copy(alpha = factorOpacity) else Color(0xFFFF0000).copy(alpha = factorOpacity)
-                                    ),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text("FALTA", fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                }
+                            Spacer(modifier = Modifier.height(9.dp))
 
-                                Button(
-                                    onClick = { frequenciaPorEncontro[chaveMap] = StatusFrequencia.JUSTIFICADA },
-                                    enabled = modoEdicaoFrequencia,
-                                    modifier = Modifier.weight(1f).height(36.dp),
-                                    contentPadding = PaddingValues(0.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if(status == StatusFrequencia.JUSTIFICADA) Color(0xFFF57C00) else Color(0xFFFFF3E0),
-                                        contentColor = if(status == StatusFrequencia.JUSTIFICADA) Color.White else Color(0xFFF57C00),
-                                        disabledContainerColor = if(status == StatusFrequencia.JUSTIFICADA) Color(0xFFF57C00).copy(alpha = factorOpacity) else Color(0xFFFFF3E0).copy(alpha = factorOpacity),
-                                        disabledContentColor = if(status == StatusFrequencia.JUSTIFICADA) Color.White.copy(alpha = factorOpacity) else Color(0xFFF57C00).copy(alpha = factorOpacity)
-                                    ),
-                                    shape = RoundedCornerShape(4.dp)
-                                ) {
-                                    Text("JUST.", fontSize = 9.sp, fontWeight = FontWeight.Bold)
-                                }
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement =
+                                Arrangement.spacedBy(5.dp)
+                            ) {
+                                BotaoStatusFrequenciaAdulto(
+                                    texto = "PRESENTE",
+                                    selecionado =
+                                    status ==
+                                            StatusFrequencia.PRESENTE,
+                                    habilitado =
+                                    modoEdicaoFrequencia,
+                                    corSelecionada =
+                                    Color(0xFF333333),
+                                    corTextoSelecionado =
+                                    Color.White,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        frequenciaPorEncontro[
+                                            chaveMap
+                                        ] =
+                                            StatusFrequencia.PRESENTE
+                                    }
+                                )
+
+                                BotaoStatusFrequenciaAdulto(
+                                    texto = "FALTA",
+                                    selecionado =
+                                    status ==
+                                            StatusFrequencia.FALTA,
+                                    habilitado =
+                                    modoEdicaoFrequencia,
+                                    corSelecionada =
+                                    Crisma_Primary,
+                                    corTextoSelecionado =
+                                    Color.White,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        frequenciaPorEncontro[
+                                            chaveMap
+                                        ] =
+                                            StatusFrequencia.FALTA
+                                    }
+                                )
+
+                                BotaoStatusFrequenciaAdulto(
+                                    texto = "JUST.",
+                                    selecionado =
+                                    status ==
+                                            StatusFrequencia.JUSTIFICADA,
+                                    habilitado =
+                                    modoEdicaoFrequencia,
+                                    corSelecionada =
+                                    Crisma_Gold,
+                                    corTextoSelecionado =
+                                    Color.Black,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = {
+                                        frequenciaPorEncontro[
+                                            chaveMap
+                                        ] =
+                                            StatusFrequencia
+                                                .JUSTIFICADA
+                                    }
+                                )
                             }
                         }
                     }
@@ -1244,7 +1846,9 @@ fun TurmaAdultaScreen(navController: NavController) {
                 item {
                     Button(
                         onClick = {
-                            if (listaCrismandosFirestore.isEmpty()) {
+                            if (
+                                listaCrismandosFirestore.isEmpty()
+                            ) {
                                 Toast.makeText(
                                     context,
                                     "Não há crismandos cadastrados nesta turma.",
@@ -1254,54 +1858,91 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 var operacoesConcluidas = 0
                                 var ocorreuErro = false
 
-                                listaCrismandosFirestore.forEach { crismando ->
-                                    val chaveMap =
-                                        "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
+                                listaCrismandosFirestore
+                                    .forEach { crismando ->
+                                        val chaveMap =
+                                            "Jov_${idTurmaSelecionada}_${encontroSelecionado}_${crismando.id}"
 
-                                    val statusParaSalvar =
-                                        frequenciaPorEncontro[chaveMap]
-                                            ?: StatusFrequencia.NENHUM
+                                        val statusParaSalvar =
+                                            frequenciaPorEncontro[
+                                                chaveMap
+                                            ]
+                                                ?: StatusFrequencia
+                                                    .NENHUM
 
-                                    FirebaseRepository.salvarFrequencia(
-                                        turmaId = idTurmaSelecionada!!,
-                                        encontro = encontroSelecionado!!,
-                                        alunoId = crismando.id,
-                                        status = statusParaSalvar,
-                                        onSuccess = {
-                                            operacoesConcluidas++
+                                        FirebaseRepository
+                                            .salvarFrequencia(
+                                                turmaId =
+                                                idTurmaSelecionada!!,
+                                                encontro =
+                                                encontroSelecionado!!,
+                                                alunoId =
+                                                crismando.id,
+                                                status =
+                                                statusParaSalvar,
+                                                onSuccess = {
+                                                    operacoesConcluidas++
 
-                                            if (
-                                                operacoesConcluidas == listaCrismandosFirestore.size &&
-                                                !ocorreuErro
-                                            ) {
-                                                Toast.makeText(
-                                                    context,
-                                                    "Chamada de Jovens salva com sucesso!",
-                                                    Toast.LENGTH_SHORT
-                                                ).show()
-                                                modoEdicaoFrequencia = false
-                                                showFrequenciaPopup = false
-                                            }
-                                        },
-                                        onError = { erro ->
-                                            operacoesConcluidas++
-                                            ocorreuErro = true
+                                                    if (
+                                                        operacoesConcluidas ==
+                                                        listaCrismandosFirestore
+                                                            .size &&
+                                                        !ocorreuErro
+                                                    ) {
+                                                        Toast.makeText(
+                                                            context,
+                                                            "Chamada de Adultos salva com sucesso!",
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
 
-                                            Toast.makeText(
-                                                context,
-                                                erro.message ?: "Erro ao salvar a frequência.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    )
-                                }
+                                                        modoEdicaoFrequencia =
+                                                            false
+
+                                                        showFrequenciaPopup =
+                                                            false
+                                                    }
+                                                },
+                                                onError = {
+                                                        erro ->
+                                                    operacoesConcluidas++
+                                                    ocorreuErro = true
+
+                                                    Toast.makeText(
+                                                        context,
+                                                        erro.message
+                                                            ?: "Erro ao salvar a frequência.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            )
+                                    }
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                        shape = RoundedCornerShape(4.dp)
+                        enabled = modoEdicaoFrequencia,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Crisma_Primary,
+                            disabledContainerColor =
+                            Color(0xFFE9E9E9),
+                            disabledContentColor =
+                            Color(0xFF999999)
+                        ),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
-                        Text("Sincronizar no Firebase", fontWeight = FontWeight.Bold)
+                        Icon(
+                            imageVector = Icons.Outlined.Save,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = "Salvar frequência",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
@@ -1309,72 +1950,275 @@ fun TurmaAdultaScreen(navController: NavController) {
     }
 
     if (showFinanceiroPopup) {
-        CustomPopupAdulta(title = "Financeiro Adultos", onDismiss = { showFinanceiroPopup = false; idTurmaSelecionada = null; crismandoSelecionado = null; parcelaSelecionadaFinanceira = null }) {
+        val tituloFinanceiro = when {
+            parcelaSelecionadaFinanceira != null ->
+                "Registrar parcela $parcelaSelecionadaFinanceira"
+
+            crismandoSelecionado != null ->
+                "Parcelas: $nomeCrismandoSelecionadoFixo"
+
+            idTurmaSelecionada != null ->
+                "Financeiro: $nomeTurmaSelecionada"
+
+            else ->
+                "Financeiro Adultos"
+        }
+
+        CustomPopupAdulta(
+            title = tituloFinanceiro,
+            onDismiss = {
+                showFinanceiroPopup = false
+                idTurmaSelecionada = null
+                nomeTurmaSelecionada = null
+                crismandoSelecionado = null
+                parcelaSelecionadaFinanceira = null
+            }
+        ) {
             if (idTurmaSelecionada == null) {
+                item {
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo = "Selecione uma turma",
+                        descricao =
+                        "Escolha a turma para consultar contribuições e registrar pagamentos.",
+                        icone = Icons.Outlined.Payments
+                    )
+                }
+
                 items(listaTurmasFirestore) { turma ->
-                    Card(onClick = { idTurmaSelecionada = turma.id }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            // O weight(1f) faz o texto ocupar todo o espaço disponível, empurrando o ícone para o fim
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
-
-                            // Um pequeno espaço de segurança antes do ícone
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            Icon(Icons.Outlined.Payments, null, tint = Crisma_Primary)
+                    CardSelecaoGestaoAdulto(
+                        titulo = turma.nome,
+                        descricao =
+                        "Abrir crismandos e parcelas desta turma",
+                        icone = Icons.Outlined.Payments,
+                        onClick = {
+                            idTurmaSelecionada = turma.id
+                            nomeTurmaSelecionada = turma.nome
                         }
+                    )
+                }
+
+                if (listaTurmasFirestore.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Nenhuma turma cadastrada.",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             } else if (crismandoSelecionado == null) {
-                item { TextButton(onClick = { idTurmaSelecionada = null }) { Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary); Text(" Voltar", color = Crisma_Primary) } }
-                items(listaCrismandosFirestore) { aluno ->
-                    Card(onClick = { crismandoSelecionado = aluno.id; nomeCrismandoSelecionadoFixo = aluno.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
-                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(aluno.nome, color = Color.Black, modifier = Modifier.weight(1f))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(Icons.Outlined.ChevronRight, null, tint = Crisma_Primary)
+                item {
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para as turmas",
+                        onClick = {
+                            idTurmaSelecionada = null
+                            nomeTurmaSelecionada = null
                         }
+                    )
+
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo = "Selecione o crismando",
+                        descricao =
+                        "Escolha quem terá as parcelas consultadas ou atualizadas.",
+                        icone = Icons.Outlined.Person
+                    )
+                }
+
+                items(listaCrismandosFirestore) { aluno ->
+                    CardSelecaoGestaoAdulto(
+                        titulo = aluno.nome,
+                        descricao = "Matrícula: ${aluno.matricula}",
+                        icone = Icons.Outlined.Person,
+                        onClick = {
+                            crismandoSelecionado = aluno.id
+                            nomeCrismandoSelecionadoFixo =
+                                aluno.nome
+                        }
+                    )
+                }
+
+                if (listaCrismandosFirestore.isEmpty()) {
+                    item {
+                        Text(
+                            text =
+                            "Nenhum crismando ativo nesta turma.",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             } else if (parcelaSelecionadaFinanceira == null) {
-                item {
-                    TextButton(onClick = { crismandoSelecionado = null }) {
-                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
-                        Text(" Voltar", color = Crisma_Primary)
+                val totalPagas =
+                    listaParcelasFinanceiras.count {
+                        it.statusPago
                     }
+
+                item {
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para os crismandos",
+                        onClick = {
+                            crismandoSelecionado = null
+                        }
+                    )
+
+                    ResumoFinanceiroAlunoAdulto(
+                        nome = nomeCrismandoSelecionadoFixo,
+                        totalPagas = totalPagas,
+                        totalParcelas = 12
+                    )
                 }
+
                 items((1..12).toList()) { numeroParcela ->
-                    val parcelaExistente = listaParcelasFinanceiras.firstOrNull { it.numeroParcela == numeroParcela }
-                    val parcelaPaga = parcelaExistente?.statusPago == true
+                    val parcelaExistente =
+                        listaParcelasFinanceiras
+                            .firstOrNull {
+                                it.numeroParcela ==
+                                        numeroParcela
+                            }
+
+                    val parcelaPaga =
+                        parcelaExistente?.statusPago == true
 
                     Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-                        shape = RoundedCornerShape(4.dp)
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor =
+                            if (parcelaPaga) {
+                                Color(0xFFFFFBE8)
+                            } else {
+                                Color(0xFFF8F8F8)
+                            }
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color =
+                            if (parcelaPaga) {
+                                Crisma_Gold.copy(alpha = 0.75f)
+                            } else {
+                                Color(0xFFEEEEEE)
+                            }
+                        ),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    horizontal = 12.dp,
+                                    vertical = 10.dp
+                                ),
+                            verticalAlignment =
+                            Alignment.CenterVertically
                         ) {
-                            Text("Parcela $numeroParcela", modifier = Modifier.weight(1f))
+                            Icon(
+                                imageVector =
+                                if (parcelaPaga) {
+                                    Icons.Outlined.CheckCircle
+                                } else {
+                                    Icons.Outlined.Payments
+                                },
+                                contentDescription = null,
+                                tint =
+                                if (parcelaPaga) {
+                                    Color(0xFF8A6D00)
+                                } else {
+                                    Crisma_Primary
+                                },
+                                modifier = Modifier.size(21.dp)
+                            )
+
+                            Spacer(modifier = Modifier.width(10.dp))
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = "Parcela $numeroParcela",
+                                    color = Color.Black,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+
+                                Text(
+                                    text =
+                                    if (parcelaPaga) {
+                                        "Pagamento confirmado"
+                                    } else {
+                                        "Aguardando pagamento"
+                                    },
+                                    color = Color(0xFF666666),
+                                    fontSize = 10.sp
+                                )
+                            }
 
                             if (parcelaPaga) {
                                 Button(
                                     onClick = {
-                                        nomeCatequistaPagamento = parcelaExistente?.recebidoPor ?: "Não identificado"
-                                        showPagamentoInfoDialog = true
+                                        nomeCatequistaPagamento =
+                                            parcelaExistente
+                                                ?.recebidoPor
+                                                ?: "Não identificado"
+
+                                        showPagamentoInfoDialog =
+                                            true
                                     },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                                    shape = RoundedCornerShape(4.dp)
+                                    colors =
+                                    ButtonDefaults.buttonColors(
+                                        containerColor =
+                                        Crisma_Gold,
+                                        contentColor =
+                                        Color.Black
+                                    ),
+                                    contentPadding = PaddingValues(
+                                        horizontal = 12.dp
+                                    ),
+                                    shape = RoundedCornerShape(9.dp)
                                 ) {
-                                    Text("PAGO", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "PAGO",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             } else {
-                                Button(
-                                    onClick = { parcelaSelecionadaFinanceira = numeroParcela },
-                                    colors = ButtonDefaults.buttonColors(containerColor = Light_Gray_Darker),
-                                    shape = RoundedCornerShape(4.dp)
+                                OutlinedButton(
+                                    onClick = {
+                                        parcelaSelecionadaFinanceira =
+                                            numeroParcela
+                                    },
+                                    colors =
+                                    ButtonDefaults
+                                        .outlinedButtonColors(
+                                            containerColor =
+                                            Color(0xFFFFF8F8),
+                                            contentColor =
+                                            Crisma_Primary
+                                        ),
+                                    border = BorderStroke(
+                                        1.dp,
+                                        Crisma_Primary.copy(
+                                            alpha = 0.55f
+                                        )
+                                    ),
+                                    contentPadding = PaddingValues(
+                                        horizontal = 11.dp
+                                    ),
+                                    shape = RoundedCornerShape(9.dp)
                                 ) {
-                                    Text("Pagar", color = Color.DarkGray, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                    Text(
+                                        text = "Registrar",
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
                                 }
                             }
                         }
@@ -1382,32 +2226,152 @@ fun TurmaAdultaScreen(navController: NavController) {
                 }
             } else {
                 item {
-                    val alunoIdFixo = crismandoSelecionado!!
-                    val alunoNomeFixo = nomeCrismandoSelecionadoFixo
-                    val parcelaFixa = parcelaSelecionadaFinanceira!!
+                    val alunoNomeFixo =
+                        nomeCrismandoSelecionadoFixo
 
-                    Column(modifier = Modifier.fillMaxWidth().padding(4.dp)) {
-                        TextButton({ parcelaSelecionadaFinanceira = null }) { Icon(Icons.Outlined.ArrowBack, null); Text(" Voltar") }
-                        Text("Lançando Parcela $parcelaFixa", fontWeight = FontWeight.Bold)
-                        Text("Crismando: $alunoNomeFixo", color = Color.Gray)
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = nomeCatequistaLogado,
-                            onValueChange = {},
-                            label = { Text("Recebido por") },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            readOnly = true
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Button(
-                            onClick = { showAlertaFinanceiroEtapa1 = true },
-                            enabled = nomeCatequistaLogado.isNotBlank(),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                            shape = RoundedCornerShape(4.dp)
+                    val parcelaFixa =
+                        parcelaSelecionadaFinanceira!!
+
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para as parcelas",
+                        onClick = {
+                            parcelaSelecionadaFinanceira =
+                                null
+                        }
+                    )
+
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo =
+                        "Registrar pagamento da parcela $parcelaFixa",
+                        descricao =
+                        "Confira os dados antes de confirmar o recebimento.",
+                        icone = Icons.Outlined.Payments
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8F8F8)
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            Color(0xFFEEEEEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(0.dp),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
                         ) {
-                            Text("Confirmar Recebimento", fontWeight = FontWeight.Bold)
+                            Row(
+                                verticalAlignment =
+                                Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector =
+                                    Icons.Outlined.Person,
+                                    contentDescription = null,
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.width(8.dp)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = alunoNomeFixo,
+                                        color = Color.Black,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+
+                                    Text(
+                                        text = "Parcela $parcelaFixa",
+                                        color = Color(0xFF666666),
+                                        fontSize = 10.sp
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            OutlinedTextField(
+                                value = nomeCatequistaLogado,
+                                onValueChange = {},
+                                label = {
+                                    Text("Recebido por")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector =
+                                        Icons.Outlined.Person,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                readOnly = true,
+                                shape = RoundedCornerShape(10.dp),
+                                colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    unfocusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    focusedBorderColor =
+                                    Crisma_Primary,
+                                    unfocusedBorderColor =
+                                    Color(0xFFE2E2E2),
+                                    focusedTextColor =
+                                    Color(0xFF333333),
+                                    unfocusedTextColor =
+                                    Color(0xFF333333)
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = {
+                                    showAlertaFinanceiroEtapa1 =
+                                        true
+                                },
+                                enabled =
+                                nomeCatequistaLogado
+                                    .isNotBlank(),
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor =
+                                    Crisma_Primary,
+                                    disabledContainerColor =
+                                    Color(0xFFE9E9E9)
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector =
+                                    Icons.Outlined.Save,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.width(8.dp)
+                                )
+
+                                Text(
+                                    text = "Confirmar recebimento",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -1421,7 +2385,7 @@ fun TurmaAdultaScreen(navController: NavController) {
         CustomPopupAdulta(title = tituloDados, onDismiss = { showDadosPopup = false; idTurmaSelecionada = null }) {
             if (idTurmaSelecionada == null) {
                 items(listaTurmasFirestore) { turma ->
-                    Card(onClick = { idTurmaSelecionada = turma.id; nomeTurmaSelecionada = turma.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), border = BorderStroke(1.dp, Color(0xFFEEEEEE)), shape = RoundedCornerShape(4.dp)) {
+                    Card(onClick = { idTurmaSelecionada = turma.id; nomeTurmaSelecionada = turma.nome }, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFF0F0F0)), shape = RoundedCornerShape(10.dp)) {
                         Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
                             Spacer(modifier = Modifier.width(8.dp))
@@ -1440,7 +2404,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
+                                .background(Color(0xFFF7F7F7), shape = RoundedCornerShape(10.dp))
                                 .padding(horizontal = 12.dp, vertical = 6.dp),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
@@ -1448,7 +2412,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .background(Color(0xFFF5F5F5), shape = RoundedCornerShape(4.dp))
+                                    .background(Color(0xFFF7F7F7), shape = RoundedCornerShape(10.dp))
                                     .padding(horizontal = 12.dp, vertical = 6.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
@@ -1519,7 +2483,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                         if (porcentagemCalculada < 75f) Color.Red else Color(0xFF2E7D32)
                     }
 
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)), shape = RoundedCornerShape(4.dp)) {
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
                         Row(modifier = Modifier.padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Column {
                                 Text(crismando.nome, fontWeight = FontWeight.SemiBold)
@@ -1582,6 +2546,12 @@ fun TurmaAdultaScreen(navController: NavController) {
                             modifier = Modifier.fillMaxWidth(),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            MensagemOrientacaoAvisoAdulto(
+                                titulo = "Escolha onde deseja publicar",
+                                descricao = "Selecione o grupo que deverá receber este aviso."
+                            )
+
+                            Spacer(modifier = Modifier.height(2.dp))
                             if (possuiPermissaoTotal) {
                                 BotaoDestinoAvisoAdulto(
                                     titulo = "Aviso Geral",
@@ -1651,6 +2621,13 @@ fun TurmaAdultaScreen(navController: NavController) {
                         }
                     }
 
+                    item {
+                        MensagemOrientacaoAvisoAdulto(
+                            titulo = "Selecione a turma",
+                            descricao = "Escolha a turma que deseja enviar o aviso."
+                        )
+                    }
+
                     items(listaTurmasFirestore) { turma ->
                         Card(
                             onClick = {
@@ -1667,7 +2644,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 width = 1.dp,
                                 color = Crisma_Primary
                             ),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Row(
                                 modifier = Modifier.padding(16.dp),
@@ -1778,7 +2755,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 width = 1.dp,
                                 color = corDestino
                             ),
-                            shape = RoundedCornerShape(6.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
                                 text = descricaoDestino,
@@ -1853,7 +2830,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 width = 1.dp,
                                 color = corDestino
                             ),
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(10.dp)
                         ) {
                             Text(
                                 text = "Publicar",
@@ -2105,7 +3082,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Sim, Excluir", fontWeight = FontWeight.Bold)
                     }
@@ -2153,7 +3130,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Confirmar Exclusão", fontWeight = FontWeight.Bold)
                     }
@@ -2199,7 +3176,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                             )
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        shape = RoundedCornerShape(4.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Text("Confirmar Exclusão", fontWeight = FontWeight.Bold)
                     }
@@ -2210,120 +3187,771 @@ fun TurmaAdultaScreen(navController: NavController) {
 
     if (showPagamentoInfoDialog) {
         AlertDialog(
-            onDismissRequest = { showPagamentoInfoDialog = false },
+            onDismissRequest = {
+                showPagamentoInfoDialog = false
+            },
+            containerColor = Color(0xFFF8F8F8),
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.CheckCircle,
+                    contentDescription = null,
+                    tint = Color(0xFF8A6D00)
+                )
+            },
             confirmButton = {
-                Button(onClick = { showPagamentoInfoDialog = false }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) {
-                    Text("OK")
+                Button(
+                    onClick = {
+                        showPagamentoInfoDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Crisma_Primary
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Fechar")
                 }
             },
-            title = { Text("Pagamento Registrado", fontWeight = FontWeight.Bold, color = Color(0xFF2E7D32)) },
-            text = { Text("Essa parcela foi recebida por:\n\n$nomeCatequistaPagamento") }
+            title = {
+                Text(
+                    text = "Pagamento registrado",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text =
+                    "Esta parcela foi recebida por:\n\n$nomeCatequistaPagamento",
+                    color = Color(0xFF444444)
+                )
+            }
         )
     }
 
     if (showAlertaFinanceiroEtapa1) {
         AlertDialog(
-            onDismissRequest = { showAlertaFinanceiroEtapa1 = false },
-            title = { Text("Registro Imutável", color = Color.Red, fontWeight = FontWeight.Bold) },
-            text = { Text("NÃO será possível reverter, editar ou excluir esta informação posterior ao envio.") },
-            dismissButton = { TextButton({ showAlertaFinanceiroEtapa1 = false }) { Text("Cancelar", color = Color.Gray) } },
+            onDismissRequest = {
+                showAlertaFinanceiroEtapa1 = false
+            },
+            containerColor = Color(0xFFF8F8F8),
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Warning,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Registro permanente",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text =
+                    "Após o envio, esta informação não poderá ser editada ou excluída pelo aplicativo.",
+                    color = Color(0xFF444444)
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAlertaFinanceiroEtapa1 = false
+                    }
+                ) {
+                    Text(
+                        text = "Cancelar",
+                        color = Color(0xFF666666)
+                    )
+                }
+            },
             confirmButton = {
-                AnimatedVisibility(visible = liberarBotaoFinanceiroEtapa1) {
+                AnimatedVisibility(
+                    visible =
+                    liberarBotaoFinanceiroEtapa1
+                ) {
                     Button(
-                        onClick = { showAlertaFinanceiroEtapa1 = false; showAlertaFinanceiroEtapa2 = true },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-                        shape = RoundedCornerShape(4.dp)
-                    ) { Text("Estou Ciente, Avançar") }
+                        onClick = {
+                            showAlertaFinanceiroEtapa1 =
+                                false
+
+                            showAlertaFinanceiroEtapa2 =
+                                true
+                        },
+                        colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor =
+                            Crisma_Primary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "Estou ciente",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         )
     }
 
     if (showAlertaFinanceiroEtapa2) {
-        val alunoIdSalvar = crismandoSelecionado ?: ""
-        val parcelaSalvar = parcelaSelecionadaFinanceira ?: 0
+        val alunoIdSalvar =
+            crismandoSelecionado ?: ""
+
+        val parcelaSalvar =
+            parcelaSelecionadaFinanceira ?: 0
 
         AlertDialog(
-            onDismissRequest = { showAlertaFinanceiroEtapa2 = false },
-            title = { Text("Segurança") },
-            text = { Text("Confirma o recebimento sob responsabilidade de: \"$nomeCatequistaLogado\"?") },
-            dismissButton = { TextButton({ showAlertaFinanceiroEtapa2 = false }) { Text("Voltar", color = Color.Gray) } },
+            onDismissRequest = {
+                showAlertaFinanceiroEtapa2 = false
+            },
+            containerColor = Color(0xFFF8F8F8),
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Payments,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Confirmar recebimento",
+                    color = Color.Black,
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text =
+                    "Confirma o recebimento sob responsabilidade de \"$nomeCatequistaLogado\"?",
+                    color = Color(0xFF444444)
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showAlertaFinanceiroEtapa2 = false
+                    }
+                ) {
+                    Text(
+                        text = "Voltar",
+                        color = Color(0xFF666666)
+                    )
+                }
+            },
             confirmButton = {
-                AnimatedVisibility(visible = liberarBotaoFinanceiroEtapa2) {
+                AnimatedVisibility(
+                    visible =
+                    liberarBotaoFinanceiroEtapa2
+                ) {
                     Button(
                         onClick = {
                             FirebaseRepository.salvarPagamento(
-                                turmaId = idTurmaSelecionada!!,
-                                alunoId = alunoIdSalvar,
-                                parcela = parcelaSalvar,
-                                recebidoPor = nomeCatequistaLogado,
+                                turmaId =
+                                idTurmaSelecionada!!,
+                                alunoId =
+                                alunoIdSalvar,
+                                parcela =
+                                parcelaSalvar,
+                                recebidoPor =
+                                nomeCatequistaLogado,
                                 onSuccess = {
                                     Toast.makeText(
                                         context,
                                         "Parcela registrada no Firebase!",
                                         Toast.LENGTH_SHORT
                                     ).show()
-                                    showAlertaFinanceiroEtapa2 = false
-                                    parcelaSelecionadaFinanceira = null
-                                    catequistaResponsavelInput = nomeCatequistaLogado
-                                    crismandoSelecionado = null
+
+                                    showAlertaFinanceiroEtapa2 =
+                                        false
+
+                                    parcelaSelecionadaFinanceira =
+                                        null
+
+                                    catequistaResponsavelInput =
+                                        nomeCatequistaLogado
+
+                                    crismandoSelecionado =
+                                        null
                                 },
                                 onError = { erro ->
                                     Toast.makeText(
                                         context,
-                                        erro.message ?: "Erro ao registrar a parcela.",
+                                        erro.message
+                                            ?: "Erro ao registrar a parcela.",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                 }
                             )
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32)),
-                        shape = RoundedCornerShape(4.dp)
-                    ) { Text("Confirmar e Gravar") }
+                        colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor =
+                            Crisma_Primary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "Confirmar e gravar",
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         )
     }
+
 }
 
+
+
+@Composable
+private fun MensagemOrientacaoGestaoAdulto(
+    titulo: String,
+    descricao: String,
+    icone: ImageVector
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFF8F8)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Crisma_Primary.copy(alpha = 0.55f)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icone,
+                contentDescription = null,
+                tint = Crisma_Primary,
+                modifier = Modifier.size(20.dp)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = titulo,
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = descricao,
+                    color = Color(0xFF666666),
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardSelecaoGestaoAdulto(
+    titulo: String,
+    descricao: String,
+    icone: ImageVector,
+    onClick: () -> Unit
+) {
+    Card(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 70.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF8F8F8)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFEEEEEE)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 13.dp,
+                    vertical = 11.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icone,
+                contentDescription = null,
+                tint = Crisma_Primary,
+                modifier = Modifier.size(22.dp)
+            )
+
+            Spacer(modifier = Modifier.width(11.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = titulo,
+                    color = Color.Black,
+                    fontSize = 13.sp,
+                    lineHeight = 15.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = descricao,
+                    color = Color(0xFF666666),
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp,
+                    maxLines = 2
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Icon(
+                imageVector = Icons.Outlined.ArrowForwardIos,
+                contentDescription = null,
+                tint = Crisma_Primary,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun BotaoVoltarGestaoAdulto(
+    texto: String,
+    onClick: () -> Unit
+) {
+    TextButton(
+        onClick = onClick,
+        contentPadding = PaddingValues(
+            horizontal = 4.dp,
+            vertical = 2.dp
+        )
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.ArrowBack,
+            contentDescription = null,
+            tint = Crisma_Primary,
+            modifier = Modifier.size(16.dp)
+        )
+
+        Spacer(modifier = Modifier.width(5.dp))
+
+        Text(
+            text = texto,
+            color = Crisma_Primary,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun BotaoStatusFrequenciaAdulto(
+    texto: String,
+    selecionado: Boolean,
+    habilitado: Boolean,
+    corSelecionada: Color,
+    corTextoSelecionado: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val fundo = if (selecionado) {
+        corSelecionada
+    } else {
+        Color(0xFFFAFAFA)
+    }
+
+    val textoCor = if (selecionado) {
+        corTextoSelecionado
+    } else {
+        corSelecionada
+    }
+
+    OutlinedButton(
+        onClick = onClick,
+        enabled = habilitado,
+        modifier = modifier.height(36.dp),
+        contentPadding = PaddingValues(horizontal = 2.dp),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = fundo,
+            contentColor = textoCor,
+            disabledContainerColor = fundo.copy(
+                alpha = if (selecionado) 0.65f else 0.75f
+            ),
+            disabledContentColor = textoCor.copy(alpha = 0.65f)
+        ),
+        border = BorderStroke(
+            width = if (selecionado) 1.5.dp else 1.dp,
+            color = corSelecionada.copy(
+                alpha = if (habilitado) 0.65f else 0.30f
+            )
+        ),
+        shape = RoundedCornerShape(9.dp)
+    ) {
+        Text(
+            text = texto,
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun ResumoFinanceiroAlunoAdulto(
+    nome: String,
+    totalPagas: Int,
+    totalParcelas: Int
+) {
+    val pendentes = (totalParcelas - totalPagas)
+        .coerceAtLeast(0)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF8F8F8)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFEEEEEE)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Person,
+                    contentDescription = null,
+                    tint = Crisma_Primary,
+                    modifier = Modifier.size(21.dp)
+                )
+
+                Spacer(modifier = Modifier.width(9.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = nome,
+                        color = Color.Black,
+                        fontSize = 13.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Resumo das contribuições",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                Arrangement.spacedBy(8.dp)
+            ) {
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFFFBE8)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        Crisma_Gold.copy(alpha = 0.75f)
+                    ),
+                    elevation = CardDefaults.cardElevation(0.dp),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment =
+                        Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = totalPagas.toString(),
+                            color = Color(0xFF7A6200),
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black
+                        )
+
+                        Text(
+                            text = "Pagas",
+                            color = Color(0xFF666666),
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(
+                        containerColor = Color(0xFFFFF7F7)
+                    ),
+                    border = BorderStroke(
+                        1.dp,
+                        Crisma_Primary.copy(alpha = 0.35f)
+                    ),
+                    elevation = CardDefaults.cardElevation(0.dp),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalAlignment =
+                        Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = pendentes.toString(),
+                            color = Crisma_Primary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Black
+                        )
+
+                        Text(
+                            text = "Pendentes",
+                            color = Color(0xFF666666),
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MensagemOrientacaoAvisoAdulto(
+    titulo: String,
+    descricao: String
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFFFF8F8)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Crisma_Primary.copy(alpha = 0.55f)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 12.dp,
+                    vertical = 10.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.Info,
+                contentDescription = null,
+                tint = Crisma_Primary,
+                modifier = Modifier.size(19.dp)
+            )
+
+            Spacer(modifier = Modifier.width(9.dp))
+
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = titulo,
+                    color = Color.Black,
+                    fontSize = 12.sp,
+                    lineHeight = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Text(
+                    text = descricao,
+                    color = Color(0xFF666666),
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun BotaoDestinoAvisoAdulto(
     titulo: String,
     descricao: String,
     cor: Color,
+    @Suppress("UNUSED_PARAMETER")
     corTexto: Color,
     onClick: () -> Unit
 ) {
-    Button(
+    val tituloNormalizado = titulo.lowercase()
+
+    val icone = when {
+        "geral" in tituloNormalizado ->
+            Icons.Outlined.Notifications
+
+        "jovens" in tituloNormalizado ||
+                "adultas" in tituloNormalizado ->
+            Icons.Outlined.Groups
+
+        else ->
+            Icons.Outlined.School
+    }
+
+    val corVisivel = if (cor == Crisma_Gold) {
+        Color(0xFF8A6D00)
+    } else {
+        cor
+    }
+
+    val fundo = when {
+        cor == Crisma_Gold ->
+            Color(0xFFFFFBE8)
+
+        cor == Aviso_Blue ->
+            Color(0xFFF5F9FE)
+
+        else ->
+            Color(0xFFFFF7F7)
+    }
+
+    val rotuloDestino = when {
+        "geral" in tituloNormalizado ->
+            "Toda a paróquia"
+
+        "jovens" in tituloNormalizado ||
+                "adultas" in tituloNormalizado ->
+            "Categoria completa"
+
+        else ->
+            "Turma específica"
+    }
+
+    Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        colors = ButtonDefaults.buttonColors(
-            containerColor = cor,
-            contentColor = corTexto
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 78.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = fundo
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = cor
+            color = corVisivel.copy(alpha = 0.55f)
         ),
-        shape = RoundedCornerShape(6.dp),
-        contentPadding = PaddingValues(14.dp)
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
     ) {
-        Column(
-            modifier = Modifier.fillMaxWidth()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(
+                    horizontal = 13.dp,
+                    vertical = 11.dp
+                ),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = titulo,
-                fontWeight = FontWeight.Bold,
-                fontSize = 15.sp
+            Icon(
+                imageVector = icone,
+                contentDescription = null,
+                tint = corVisivel,
+                modifier = Modifier.size(23.dp)
             )
 
-            Spacer(modifier = Modifier.height(3.dp))
+            Spacer(modifier = Modifier.width(11.dp))
 
-            Text(
-                text = descricao,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Normal
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = titulo,
+                    color = Color.Black,
+                    fontSize = 14.sp,
+                    lineHeight = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+
+                Spacer(modifier = Modifier.height(2.dp))
+
+                Text(
+                    text = descricao,
+                    color = Color(0xFF5F5F5F),
+                    fontSize = 10.sp,
+                    lineHeight = 12.sp,
+                    maxLines = 2
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Text(
+                    text = rotuloDestino,
+                    color = corVisivel,
+                    fontSize = 9.sp,
+                    lineHeight = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Icon(
+                imageVector = Icons.Outlined.ArrowForwardIos,
+                contentDescription = null,
+                tint = corVisivel,
+                modifier = Modifier.size(14.dp)
             )
         }
     }
@@ -2409,7 +4037,7 @@ private fun CardAvisoAdministrativoAdulto(
                     modifier = Modifier
                         .background(
                             color = corAviso,
-                            shape = RoundedCornerShape(4.dp)
+                            shape = RoundedCornerShape(10.dp)
                         )
                         .padding(
                             horizontal = 7.dp,
@@ -2652,7 +4280,7 @@ private fun DocumentosAdultoDialog(
                     }
                 }
 
-                HorizontalDivider(color = Color(0xFFEEEEEE))
+                HorizontalDivider(color = Color(0xFFF0F0F0))
                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(
                         onClick = onDismiss,
@@ -2694,9 +4322,9 @@ private fun EscolhaSimNaoDocumento(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF9F9F9)
+            containerColor = Color.White
         ),
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(
             width = 1.dp,
             color = Crisma_Primary
@@ -2781,9 +4409,9 @@ private fun DocumentoSwitchLinha(
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
-            containerColor = Color(0xFFF9F9F9)
+            containerColor = Color.White
         ),
-        shape = RoundedCornerShape(6.dp),
+        shape = RoundedCornerShape(10.dp),
         border = BorderStroke(
             width = 1.dp,
             color = Crisma_Primary
@@ -2871,39 +4499,223 @@ fun UserIconWithLabelAdulta(icon: ImageVector, label: String, onClick: () -> Uni
 }
 
 @Composable
-fun SmallMenuCardAdulta(title: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: () -> Unit) {
+fun SmallMenuCardAdulta(
+    title: String,
+    icon: ImageVector,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val descricao = when (title) {
+        "Frequência" -> "Encontros e presenças"
+        "Turmas" -> "Alunos e documentos"
+        "Avisos" -> "Comunicados"
+        "Financeiro" -> "Parcelas e pagamentos"
+        "Links" -> "Acessos da tela inicial"
+        "Voltar" -> "Painel do catequista"
+        else -> "Gerenciar informações"
+    }
+
     Card(
-        modifier = modifier
-            .height(80.dp)
-            .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = Color(0xFFF9F9F9)),
-        shape = RoundedCornerShape(4.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        onClick = onClick,
+        modifier = modifier.height(74.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF8F8F8),
+            disabledContainerColor = Color(0xFFF5F5F5)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFEEEEEE)
+        ),
+        shape = RoundedCornerShape(10.dp),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
+        )
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(8.dp),
-            verticalArrangement = Arrangement.Center,
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(
+                    horizontal = 5.dp,
+                    vertical = 7.dp
+                ),
+            horizontalAlignment =
+            Alignment.CenterHorizontally,
+            verticalArrangement =
+            Arrangement.Center
         ) {
-            Icon(imageVector = icon, contentDescription = title, tint = Crisma_Primary, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(text = title, color = Color.Black, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+            /*
+             * Ícone sem caixa ou margem vermelha ao fundo.
+             * O vermelho aparece apenas no próprio desenho.
+             */
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = Crisma_Primary,
+                modifier = Modifier.size(20.dp)
+            )
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Text(
+                text = title,
+                color = Color.Black,
+                fontSize = 11.sp,
+                lineHeight = 12.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1
+            )
+
+            Text(
+                text = descricao,
+                color = Color.Gray,
+                fontSize = 8.sp,
+                lineHeight = 9.sp,
+                maxLines = 1
+            )
         }
     }
 }
 
 @Composable
-fun CustomPopupAdulta(title: String, onDismiss: () -> Unit, content: LazyListScope.() -> Unit) {
+fun CustomPopupAdulta(
+    title: String,
+    onDismiss: () -> Unit,
+    content: LazyListScope.() -> Unit
+) {
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
-    Dialog(onDismissRequest = onDismiss) {
-        Box(modifier = Modifier.fillMaxWidth().height(screenHeight * 0.52f).background(Color.White, shape = RoundedCornerShape(2.dp)).border(width = 1.dp, color = Crisma_Primary, shape = RoundedCornerShape(2.dp))) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.fillMaxWidth().background(Crisma_Primary).padding(12.dp)) {
-                    Text(text = title, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
-                    Icon(imageVector = Icons.Outlined.Close, contentDescription = "Fechar", tint = Color.White, modifier = Modifier.align(Alignment.CenterEnd).clickable { onDismiss() })
+
+    val tituloNormalizado = title.lowercase()
+
+    val iconeCabecalho = when {
+        "frequ" in tituloNormalizado ->
+            Icons.Outlined.CheckCircle
+        "finance" in tituloNormalizado ->
+            Icons.Outlined.Payments
+        "aviso" in tituloNormalizado ->
+            Icons.Outlined.Notifications
+        "turma" in tituloNormalizado ||
+                "editar" in tituloNormalizado ->
+            Icons.Outlined.Groups
+        "document" in tituloNormalizado ->
+            Icons.Outlined.Description
+        else ->
+            Icons.Outlined.ListAlt
+    }
+
+    val subtitulo = when {
+        "frequ" in tituloNormalizado ->
+            "Organize encontros e acompanhe os registros"
+        "finance" in tituloNormalizado ->
+            "Consulte e atualize parcelas e pagamentos"
+        "aviso" in tituloNormalizado ->
+            "Crie e acompanhe os comunicados"
+        "turma" in tituloNormalizado ||
+                "editar" in tituloNormalizado ->
+            "Selecione uma turma ou gerencie seus integrantes"
+        else ->
+            "Selecione ou atualize as informações"
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(
+                    min = screenHeight * 0.42f,
+                    max = screenHeight * 0.72f
+                ),
+            color = Color(0xFFFAFAFA),
+            shape = RoundedCornerShape(16.dp),
+            border = BorderStroke(
+                width = 1.dp,
+                color = Color(0xFFE8E8E8)
+            ),
+            tonalElevation = 0.dp,
+            shadowElevation = 6.dp
+        ) {
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(
+                            horizontal = 16.dp,
+                            vertical = 14.dp
+                        ),
+                    verticalAlignment =
+                    Alignment.CenterVertically
+                ) {
+                    /*
+                     * Cabeçalho sem fundo colorido atrás do ícone.
+                     */
+                    Icon(
+                        imageVector = iconeCabecalho,
+                        contentDescription = null,
+                        tint = Crisma_Primary,
+                        modifier = Modifier.size(23.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Column(
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = title,
+                            color = Color.Black,
+                            fontSize = 16.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            text = subtitulo,
+                            color = Color.Gray,
+                            fontSize = 10.sp,
+                            lineHeight = 12.sp,
+                            maxLines = 2
+                        )
+                    }
+
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.size(34.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = Color(0xFF666666)
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Close,
+                            contentDescription = "Fechar",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
                 }
-                LazyColumn(modifier = Modifier.fillMaxWidth().weight(1f).padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp), content = content)
+
+                HorizontalDivider(
+                    color = Color(0xFFECECEC),
+                    thickness = 1.dp
+                )
+
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(Color(0xFFFAFAFA))
+                        .padding(
+                            horizontal = 14.dp,
+                            vertical = 12.dp
+                        ),
+                    verticalArrangement =
+                    Arrangement.spacedBy(8.dp),
+                    content = content
+                )
             }
         }
     }

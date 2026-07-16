@@ -97,6 +97,7 @@ object FirebaseRepository {
     private const val COLECAO_DOCUMENTOS_CONFIGURACAO = "documentos_configuracao"
     private const val COLECAO_HISTORICO_ALUNOS = "historico_alunos"
     private const val COLECAO_MOVIMENTACOES = "movimentacoes"
+    private const val COLECAO_ATALHOS_INICIO = "atalhos_inicio"
 
     private const val TAMANHO_LOTE_EXCLUSAO = 400
 
@@ -1871,6 +1872,192 @@ object FirebaseRepository {
             onSuccess = onSuccess,
             onError = onError
         )
+    }
+
+    // ==========================================================
+    // ATALHOS DA PRIMEIRA TELA
+    // ==========================================================
+
+    fun ouvirAtalhosIniciais(
+        onUpdate: (List<AtalhoInicialConfiguracao>) -> Unit,
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration {
+        return db.collection(COLECAO_ATALHOS_INICIO)
+            .addSnapshotListener { snapshot, erro ->
+                if (erro != null) {
+                    onError(erro)
+                    return@addSnapshotListener
+                }
+
+                val documentosPorId = snapshot
+                    ?.documents
+                    ?.associateBy {
+                        it.id.trim().uppercase(Locale.ROOT)
+                    }
+                    .orEmpty()
+
+                val configuracoes =
+                    AtalhosIniciaisPadrao.lista().map { padrao ->
+                        val documento =
+                            documentosPorId[padrao.id]
+
+                        if (documento == null) {
+                            padrao
+                        } else {
+                            padrao.copy(
+                                titulo = documento
+                                    .getString("titulo")
+                                    .orEmpty()
+                                    .trim()
+                                    .ifBlank {
+                                        padrao.titulo
+                                    },
+                                descricao = documento
+                                    .getString("descricao")
+                                    .orEmpty()
+                                    .trim()
+                                    .ifBlank {
+                                        padrao.descricao
+                                    },
+                                url = documento
+                                    .getString("url")
+                                    .orEmpty()
+                                    .trim()
+                                    .ifBlank {
+                                        padrao.url
+                                    },
+                                iconeCodigo = documento
+                                    .getString("iconeCodigo")
+                                    .orEmpty()
+                                    .trim()
+                                    .uppercase(Locale.ROOT)
+                                    .takeIf {
+                                        it in
+                                                IconesAtalhoInicial
+                                                    .codigosPermitidos
+                                    }
+                                    ?: padrao.iconeCodigo
+                            )
+                        }
+                    }
+
+                onUpdate(configuracoes)
+            }
+    }
+
+    fun salvarAtalhoInicial(
+        configuracao: AtalhoInicialConfiguracao,
+        responsavel: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        val idTratado = configuracao.id
+            .trim()
+            .uppercase(Locale.ROOT)
+
+        val tituloTratado = configuracao.titulo
+            .trim()
+
+        val descricaoTratada = configuracao.descricao
+            .trim()
+
+        val urlTratada = configuracao.url
+            .trim()
+
+        val iconeTratado = configuracao.iconeCodigo
+            .trim()
+            .uppercase(Locale.ROOT)
+
+        if (
+            AtalhosIniciaisPadrao.porId(idTratado) == null
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "O botão selecionado é inválido."
+                )
+            )
+            return
+        }
+
+        if (
+            tituloTratado.isBlank() ||
+            tituloTratado.length > 18
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "O nome deve ter entre 1 e 18 caracteres."
+                )
+            )
+            return
+        }
+
+        if (
+            descricaoTratada.isBlank() ||
+            descricaoTratada.length > 24
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "O texto pequeno deve ter entre 1 e 24 caracteres."
+                )
+            )
+            return
+        }
+
+        if (
+            !urlTratada.startsWith(
+                "https://",
+                ignoreCase = true
+            ) &&
+            !urlTratada.startsWith(
+                "http://",
+                ignoreCase = true
+            )
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "Digite um link completo começando com https://"
+                )
+            )
+            return
+        }
+
+        if (
+            iconeTratado !in
+            IconesAtalhoInicial.codigosPermitidos
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "O ícone selecionado é inválido."
+                )
+            )
+            return
+        }
+
+        val dados = mapOf(
+            "id" to idTratado,
+            "titulo" to tituloTratado,
+            "descricao" to descricaoTratada,
+            "url" to urlTratada,
+            "iconeCodigo" to iconeTratado,
+            "atualizadoPor" to responsavel
+                .trim()
+                .ifBlank {
+                    "Administrador"
+                },
+            "dataAtualizacao" to
+                    FieldValue.serverTimestamp()
+        )
+
+        db.collection(COLECAO_ATALHOS_INICIO)
+            .document(idTratado)
+            .set(
+                dados,
+                SetOptions.merge()
+            )
+            .addOnSuccessListener {
+                onSuccess()
+            }
+            .addOnFailureListener(onError)
     }
 
     // ==========================================================

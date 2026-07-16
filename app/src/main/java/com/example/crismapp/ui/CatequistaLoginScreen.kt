@@ -372,8 +372,8 @@ fun CatequistaLoginScreen(navController: NavController) {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFFFFDFD),
-                                unfocusedContainerColor = Color(0xFFFFFDFD),
+                                focusedContainerColor = Color(0xFFFBFBFB),
+                                unfocusedContainerColor = Color(0xFFFBFBFB),
                                 focusedBorderColor = Crisma_Primary,
                                 unfocusedBorderColor = Color(0xFFECECEC),
                                 focusedLabelColor = Color(0xFF5F5F5F),
@@ -447,8 +447,8 @@ fun CatequistaLoginScreen(navController: NavController) {
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = Color(0xFFFFFDFD),
-                                unfocusedContainerColor = Color(0xFFFFFDFD),
+                                focusedContainerColor = Color(0xFFFBFBFB),
+                                unfocusedContainerColor = Color(0xFFFBFBFB),
                                 focusedBorderColor = Crisma_Primary,
                                 unfocusedBorderColor = Color(0xFFECECEC),
                                 focusedLabelColor = Color(0xFF5F5F5F),
@@ -499,8 +499,8 @@ fun CatequistaLoginScreen(navController: NavController) {
                                     .weight(1f)
                                     .height(44.dp),
                                 colors = CardDefaults.cardColors(
-                                    containerColor = Color.White,
-                                    disabledContainerColor = Color(0xFFF7F7F7)
+                                    containerColor = Color(0xFFF8F8F8),
+                                    disabledContainerColor = Color(0xFFF5F5F5)
                                 ),
                                 elevation = CardDefaults.cardElevation(
                                     defaultElevation = 2.dp,
@@ -508,7 +508,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                                 ),
                                 border = BorderStroke(
                                     width = 1.dp,
-                                    color = Color(0xFFF0F0F0)
+                                    color = Color(0xFFEEEEEE)
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
@@ -578,7 +578,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                                     .height(44.dp),
                                 colors = CardDefaults.cardColors(
                                     containerColor = Crisma_Primary,
-                                    disabledContainerColor = Color(0xFFE7E7E7)
+                                    disabledContainerColor = Color(0xFFF1F1F1)
                                 ),
                                 elevation = CardDefaults.cardElevation(
                                     defaultElevation = 2.dp,

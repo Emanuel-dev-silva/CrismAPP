@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -42,8 +43,28 @@ private const val TOTAL_PARCELAS_PAINEL = 12
 
 private data class AlunoPainel(
     val id: String,
+    val nome: String,
     val turmaId: String,
+    val categoria: String,
     val ativo: Boolean
+)
+
+private data class TurmaPainel(
+    val id: String,
+    val nome: String,
+    val categoria: String
+)
+
+private data class GrupoTurmaPainel<T>(
+    val turmaId: String,
+    val turmaNome: String,
+    val itens: List<T>
+)
+
+private data class GrupoCategoriaPainel<T>(
+    val categoria: String,
+    val titulo: String,
+    val turmas: List<GrupoTurmaPainel<T>>
 )
 
 private data class EncontroPainel(
@@ -52,7 +73,15 @@ private data class EncontroPainel(
 
 private data class FrequenciaPainel(
     val alunoId: String,
+    val turmaId: String,
     val status: String
+)
+
+private data class AlunoComFrequenciaBaixa(
+    val aluno: AlunoPainel,
+    val quantidadeFaltas: Int,
+    val totalEncontros: Int,
+    val percentualFaltas: Float
 )
 
 private data class PagamentoPainel(
@@ -61,11 +90,133 @@ private data class PagamentoPainel(
     val pago: Boolean
 )
 
+private data class AlunoComParcelasPendentes(
+    val aluno: AlunoPainel,
+    val quantidadeRestante: Int
+)
+
 private data class DocumentoPainel(
     val alunoId: String,
     val perfil: String,
     val status: String
 )
+
+private data class ResumoTurmaPainel(
+    val turmaId: String,
+    val turmaNome: String,
+    val categoria: String,
+    val totalAtivos: Int,
+    val totalDocumentacaoPendente: Int,
+    val totalParcelasPendentes: Int,
+    val totalFrequenciaAlerta: Int
+)
+
+private data class GrupoResumoTurmasPainel(
+    val categoria: String,
+    val titulo: String,
+    val resumos: List<ResumoTurmaPainel>
+)
+
+private fun normalizarCategoriaPainel(valor: String): String {
+    val categoria = valor
+        .trim()
+        .lowercase(Locale.ROOT)
+
+    return when {
+        categoria.contains("adult") -> "adulta"
+        categoria.contains("jov") -> "jovem"
+        else -> categoria
+    }
+}
+
+private fun tituloCategoriaPainel(categoria: String): String {
+    return when (normalizarCategoriaPainel(categoria)) {
+        "adulta" -> "Adultos"
+        "jovem" -> "Jovens"
+        else -> "Sem categoria"
+    }
+}
+
+private fun <T> agruparPorCategoriaETurma(
+    itens: List<T>,
+    turmas: List<TurmaPainel>,
+    obterAluno: (T) -> AlunoPainel,
+    comparadorItens: Comparator<T>? = null
+): List<GrupoCategoriaPainel<T>> {
+    val localeBrasil = Locale("pt", "BR")
+    val turmasPorId = turmas.associateBy { it.id }
+
+    val itensPorCategoria = itens.groupBy { item ->
+        val aluno = obterAluno(item)
+        val turma = turmasPorId[aluno.turmaId]
+
+        normalizarCategoriaPainel(
+            turma?.categoria
+                .orEmpty()
+                .ifBlank { aluno.categoria }
+        )
+    }
+
+    val ordemCategorias = buildList {
+        add("adulta")
+        add("jovem")
+
+        itensPorCategoria.keys
+            .filter {
+                it != "adulta" &&
+                        it != "jovem"
+            }
+            .sorted()
+            .forEach(::add)
+    }
+
+    return ordemCategorias.mapNotNull { categoria ->
+        val itensDaCategoria =
+            itensPorCategoria[categoria].orEmpty()
+
+        if (itensDaCategoria.isEmpty()) {
+            null
+        } else {
+            val gruposTurma = itensDaCategoria
+                .groupBy { item ->
+                    obterAluno(item).turmaId
+                }
+                .map { (turmaId, itensDaTurma) ->
+                    val turma = turmasPorId[turmaId]
+
+                    GrupoTurmaPainel(
+                        turmaId = turmaId,
+                        turmaNome = turma
+                            ?.nome
+                            .orEmpty()
+                            .ifBlank {
+                                turmaId.ifBlank {
+                                    "Turma não identificada"
+                                }
+                            },
+                        itens = if (comparadorItens != null) {
+                            itensDaTurma.sortedWith(comparadorItens)
+                        } else {
+                            itensDaTurma.sortedBy { item ->
+                                obterAluno(item)
+                                    .nome
+                                    .lowercase(localeBrasil)
+                            }
+                        }
+                    )
+                }
+                .sortedBy {
+                    it.turmaNome.lowercase(localeBrasil)
+                }
+
+            GrupoCategoriaPainel(
+                categoria = categoria,
+                titulo = tituloCategoriaPainel(categoria),
+                turmas = gruposTurma
+            )
+        }
+    }
+}
 
 @Composable
 fun CatequistaOptionsScreen(navController: NavController) {
@@ -77,18 +228,32 @@ fun CatequistaOptionsScreen(navController: NavController) {
 
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
+    var showDocumentacaoPendenteDialog by remember {
+        mutableStateOf(false)
+    }
+    var showParcelasPendentesDialog by remember {
+        mutableStateOf(false)
+    }
+    var showFrequenciaBaixaDialog by remember {
+        mutableStateOf(false)
+    }
+    var showResumoTurmasDialog by remember {
+        mutableStateOf(false)
+    }
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
     var animarBotoes by remember { mutableStateOf(false) }
     var animarIconesTopo by remember { mutableStateOf(true) }
 
     var alunosPainel by remember { mutableStateOf(emptyList<AlunoPainel>()) }
+    var turmasPainel by remember { mutableStateOf(emptyList<TurmaPainel>()) }
     var encontrosPainel by remember { mutableStateOf(emptyList<EncontroPainel>()) }
     var frequenciasPainel by remember { mutableStateOf(emptyList<FrequenciaPainel>()) }
     var pagamentosPainel by remember { mutableStateOf(emptyList<PagamentoPainel>()) }
     var documentosPainel by remember { mutableStateOf(emptyList<DocumentoPainel>()) }
 
     var carregandoAlunos by remember { mutableStateOf(true) }
+    var carregandoTurmas by remember { mutableStateOf(true) }
     var carregandoEncontros by remember { mutableStateOf(true) }
     var carregandoFrequencias by remember { mutableStateOf(true) }
     var carregandoPagamentos by remember { mutableStateOf(true) }
@@ -96,6 +261,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
 
     val carregandoPainel =
         carregandoAlunos ||
+                carregandoTurmas ||
                 carregandoEncontros ||
                 carregandoFrequencias ||
                 carregandoPagamentos ||
@@ -117,84 +283,362 @@ fun CatequistaOptionsScreen(navController: NavController) {
         }
     }
 
-    val totalDocumentacaoPendente by remember(
+    val alunosComDocumentacaoPendente by remember(
         alunosAtivos,
         documentosPainel
     ) {
         derivedStateOf {
-            alunosAtivos.count { aluno ->
-                val documentosDoAluno = documentosPainel.filter {
-                    it.alunoId.equals(aluno.id, ignoreCase = true)
-                }
+            alunosAtivos
+                .filter { aluno ->
+                    val documentosDoAluno = documentosPainel.filter {
+                        it.alunoId.equals(
+                            aluno.id,
+                            ignoreCase = true
+                        )
+                    }
 
-                val perfisConfigurados = documentosDoAluno
-                    .map { it.perfil.uppercase(Locale.ROOT) }
-                    .toSet()
-
-                documentosDoAluno.isEmpty() ||
-                        "CRISMANDO" !in perfisConfigurados ||
-                        "PADRINHO" !in perfisConfigurados ||
-                        documentosDoAluno.any {
-                            it.status.equals(
-                                "NAO_ENTREGUE",
-                                ignoreCase = true
-                            )
+                    val perfisConfigurados = documentosDoAluno
+                        .map {
+                            it.perfil.uppercase(Locale.ROOT)
                         }
-            }
+                        .toSet()
+
+                    documentosDoAluno.isEmpty() ||
+                            "CRISMANDO" !in perfisConfigurados ||
+                            "PADRINHO" !in perfisConfigurados ||
+                            documentosDoAluno.any {
+                                it.status.equals(
+                                    "NAO_ENTREGUE",
+                                    ignoreCase = true
+                                )
+                            }
+                }
+                .sortedBy {
+                    it.nome.lowercase(Locale("pt", "BR"))
+                }
         }
     }
 
-    val totalFrequenciaAbaixoDe75 by remember(
+    val totalDocumentacaoPendente by remember(
+        alunosComDocumentacaoPendente
+    ) {
+        derivedStateOf {
+            alunosComDocumentacaoPendente.size
+        }
+    }
+
+    val alunosComFrequenciaBaixa by remember(
         alunosAtivos,
         encontrosPainel,
         frequenciasPainel
     ) {
         derivedStateOf {
-            alunosAtivos.count { aluno ->
-                val totalEncontrosDaTurma = encontrosPainel.count {
-                    it.turmaId == aluno.turmaId
-                }
+            val localeBrasil = Locale("pt", "BR")
 
-                if (totalEncontrosDaTurma <= 0) {
-                    false
-                } else {
-                    val totalPresencas = frequenciasPainel.count {
-                        it.alunoId.equals(aluno.id, ignoreCase = true) &&
-                                it.status.equals(
-                                    "PRESENTE",
-                                    ignoreCase = true
-                                )
+            alunosAtivos
+                .mapNotNull { aluno ->
+                    val totalEncontrosDaTurma = encontrosPainel.count {
+                        it.turmaId == aluno.turmaId
                     }
 
-                    val porcentagem =
-                        totalPresencas.toFloat() /
-                                totalEncontrosDaTurma.toFloat() *
-                                100f
+                    if (totalEncontrosDaTurma <= 0) {
+                        null
+                    } else {
+                        /*
+                         * Para o percentual de faltas, tanto FALTA quanto
+                         * JUSTIFICADA contam como encontro não frequentado.
+                         * Registros NENHUM não entram como falta.
+                         */
+                        val quantidadeFaltas =
+                            frequenciasPainel.count { frequencia ->
+                                frequencia.alunoId.equals(
+                                    aluno.id,
+                                    ignoreCase = true
+                                ) &&
+                                        frequencia.turmaId == aluno.turmaId &&
+                                        (
+                                                frequencia.status.equals(
+                                                    "FALTA",
+                                                    ignoreCase = true
+                                                ) ||
+                                                        frequencia.status.equals(
+                                                            "JUSTIFICADA",
+                                                            ignoreCase = true
+                                                        )
+                                                )
+                            }
+                                .coerceAtMost(totalEncontrosDaTurma)
 
-                    porcentagem < 75f
+                        val percentualFaltas =
+                            quantidadeFaltas.toFloat() /
+                                    totalEncontrosDaTurma.toFloat() *
+                                    100f
+
+                        if (percentualFaltas > 20f) {
+                            AlunoComFrequenciaBaixa(
+                                aluno = aluno,
+                                quantidadeFaltas = quantidadeFaltas,
+                                totalEncontros = totalEncontrosDaTurma,
+                                percentualFaltas = percentualFaltas
+                            )
+                        } else {
+                            null
+                        }
+                    }
                 }
-            }
+                .sortedWith(
+                    compareByDescending<AlunoComFrequenciaBaixa> {
+                        it.percentualFaltas
+                    }.thenBy {
+                        it.aluno.nome.lowercase(localeBrasil)
+                    }
+                )
         }
     }
 
-    val totalParcelasPendentes by remember(
+    val totalFrequenciaBaixa by remember(
+        alunosComFrequenciaBaixa
+    ) {
+        derivedStateOf {
+            alunosComFrequenciaBaixa.size
+        }
+    }
+
+    val alunosComParcelasPendentes by remember(
         alunosAtivos,
         pagamentosPainel
     ) {
         derivedStateOf {
-            alunosAtivos.sumOf { aluno ->
-                val parcelasPagas = pagamentosPainel
-                    .filter {
-                        it.alunoId.equals(aluno.id, ignoreCase = true) &&
-                                it.pago &&
-                                it.numeroParcela in 1..TOTAL_PARCELAS_PAINEL
-                    }
-                    .map { it.numeroParcela }
-                    .distinct()
-                    .size
+            alunosAtivos
+                .mapNotNull { aluno ->
+                    val parcelasPagas = pagamentosPainel
+                        .filter {
+                            it.alunoId.equals(
+                                aluno.id,
+                                ignoreCase = true
+                            ) &&
+                                    it.pago &&
+                                    it.numeroParcela in
+                                    1..TOTAL_PARCELAS_PAINEL
+                        }
+                        .map { it.numeroParcela }
+                        .distinct()
+                        .size
 
-                (TOTAL_PARCELAS_PAINEL - parcelasPagas)
-                    .coerceAtLeast(0)
+                    val quantidadeRestante =
+                        (TOTAL_PARCELAS_PAINEL - parcelasPagas)
+                            .coerceAtLeast(0)
+
+                    if (quantidadeRestante > 0) {
+                        AlunoComParcelasPendentes(
+                            aluno = aluno,
+                            quantidadeRestante = quantidadeRestante
+                        )
+                    } else {
+                        null
+                    }
+                }
+                .sortedBy {
+                    it.aluno.nome.lowercase(
+                        Locale("pt", "BR")
+                    )
+                }
+        }
+    }
+
+    val totalParcelasPendentes by remember(
+        alunosComParcelasPendentes
+    ) {
+        derivedStateOf {
+            alunosComParcelasPendentes.sumOf {
+                it.quantidadeRestante
+            }
+        }
+    }
+
+    val documentacaoPendenteAgrupada by remember(
+        alunosComDocumentacaoPendente,
+        turmasPainel
+    ) {
+        derivedStateOf {
+            agruparPorCategoriaETurma(
+                itens = alunosComDocumentacaoPendente,
+                turmas = turmasPainel,
+                obterAluno = { aluno -> aluno }
+            )
+        }
+    }
+
+    val parcelasPendentesAgrupadas by remember(
+        alunosComParcelasPendentes,
+        turmasPainel
+    ) {
+        derivedStateOf {
+            agruparPorCategoriaETurma(
+                itens = alunosComParcelasPendentes,
+                turmas = turmasPainel,
+                obterAluno = { pendencia ->
+                    pendencia.aluno
+                }
+            )
+        }
+    }
+
+    val frequenciaBaixaAgrupada by remember(
+        alunosComFrequenciaBaixa,
+        turmasPainel
+    ) {
+        derivedStateOf {
+            val localeBrasil = Locale("pt", "BR")
+
+            agruparPorCategoriaETurma(
+                itens = alunosComFrequenciaBaixa,
+                turmas = turmasPainel,
+                obterAluno = { frequenciaBaixa ->
+                    frequenciaBaixa.aluno
+                },
+                comparadorItens =
+                compareByDescending<AlunoComFrequenciaBaixa> {
+                    it.percentualFaltas
+                }.thenBy {
+                    it.aluno.nome.lowercase(localeBrasil)
+                }
+            )
+        }
+    }
+
+    /*
+     * Resumo geral por turma usado ao tocar em "Crismandos ativos".
+     *
+     * Regras:
+     * - ativos: quantidade de crismandos ativos;
+     * - documentos: quantidade de crismandos com documentação incompleta;
+     * - parcelas: soma de todas as parcelas ainda pendentes;
+     * - frequência: quantidade de crismandos com mais de 20% de faltas.
+     */
+    val resumosTurmas by remember(
+        alunosAtivos,
+        turmasPainel,
+        alunosComDocumentacaoPendente,
+        alunosComParcelasPendentes,
+        alunosComFrequenciaBaixa
+    ) {
+        derivedStateOf {
+            val localeBrasil = Locale("pt", "BR")
+            val turmasPorId = turmasPainel.associateBy { it.id }
+
+            val idsDocumentacaoPendente =
+                alunosComDocumentacaoPendente
+                    .map { it.id.lowercase(Locale.ROOT) }
+                    .toSet()
+
+            val parcelasPendentesPorAluno =
+                alunosComParcelasPendentes.associate {
+                    it.aluno.id.lowercase(Locale.ROOT) to
+                            it.quantidadeRestante
+                }
+
+            val idsFrequenciaAlerta =
+                alunosComFrequenciaBaixa
+                    .map {
+                        it.aluno.id.lowercase(Locale.ROOT)
+                    }
+                    .toSet()
+
+            alunosAtivos
+                .groupBy { it.turmaId }
+                .map { (turmaId, alunosDaTurma) ->
+                    val turma = turmasPorId[turmaId]
+
+                    val categoria = normalizarCategoriaPainel(
+                        turma?.categoria
+                            .orEmpty()
+                            .ifBlank {
+                                alunosDaTurma
+                                    .firstOrNull()
+                                    ?.categoria
+                                    .orEmpty()
+                            }
+                    )
+
+                    ResumoTurmaPainel(
+                        turmaId = turmaId,
+                        turmaNome = turma
+                            ?.nome
+                            .orEmpty()
+                            .ifBlank {
+                                turmaId.ifBlank {
+                                    "Turma não identificada"
+                                }
+                            },
+                        categoria = categoria,
+                        totalAtivos = alunosDaTurma.size,
+                        totalDocumentacaoPendente =
+                        alunosDaTurma.count { aluno ->
+                            aluno.id
+                                .lowercase(Locale.ROOT) in
+                                    idsDocumentacaoPendente
+                        },
+                        totalParcelasPendentes =
+                        alunosDaTurma.sumOf { aluno ->
+                            parcelasPendentesPorAluno[
+                                aluno.id.lowercase(Locale.ROOT)
+                            ] ?: 0
+                        },
+                        totalFrequenciaAlerta =
+                        alunosDaTurma.count { aluno ->
+                            aluno.id
+                                .lowercase(Locale.ROOT) in
+                                    idsFrequenciaAlerta
+                        }
+                    )
+                }
+                .sortedWith(
+                    compareBy<ResumoTurmaPainel> {
+                        when (it.categoria) {
+                            "adulta" -> 0
+                            "jovem" -> 1
+                            else -> 2
+                        }
+                    }.thenBy {
+                        it.turmaNome.lowercase(localeBrasil)
+                    }
+                )
+        }
+    }
+
+    val resumosTurmasAgrupados by remember(resumosTurmas) {
+        derivedStateOf {
+            val gruposPorCategoria =
+                resumosTurmas.groupBy { it.categoria }
+
+            val ordemCategorias = buildList {
+                add("adulta")
+                add("jovem")
+
+                gruposPorCategoria.keys
+                    .filter {
+                        it != "adulta" &&
+                                it != "jovem"
+                    }
+                    .sorted()
+                    .forEach(::add)
+            }
+
+            ordemCategorias.mapNotNull { categoria ->
+                val resumos =
+                    gruposPorCategoria[categoria].orEmpty()
+
+                if (resumos.isEmpty()) {
+                    null
+                } else {
+                    GrupoResumoTurmasPainel(
+                        categoria = categoria,
+                        titulo =
+                        tituloCategoriaPainel(categoria),
+                        resumos = resumos
+                    )
+                }
             }
         }
     }
@@ -246,6 +690,32 @@ fun CatequistaOptionsScreen(navController: NavController) {
     }
 
     DisposableEffect(Unit) {
+        val listenerTurmas = db.collection("turmas")
+            .addSnapshotListener { snapshot, erro ->
+                carregandoTurmas = false
+
+                if (erro != null || snapshot == null) {
+                    turmasPainel = emptyList()
+                    return@addSnapshotListener
+                }
+
+                turmasPainel = snapshot.documents.map { documento ->
+                    TurmaPainel(
+                        id = documento.id,
+                        nome = documento
+                            .getString("nome")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank { documento.id },
+                        categoria = normalizarCategoriaPainel(
+                            documento
+                                .getString("categoria")
+                                .orEmpty()
+                        )
+                    )
+                }
+            }
+
         val listenerAlunos = db.collection("usuarios")
             .addSnapshotListener { snapshot, erro ->
                 carregandoAlunos = false
@@ -265,8 +735,18 @@ fun CatequistaOptionsScreen(navController: NavController) {
                     } else {
                         AlunoPainel(
                             id = documento.id,
-                            turmaId = documento.getString("turmaId").orEmpty(),
-                            ativo = documento.getBoolean("ativo") ?: true
+                            nome = nome,
+                            turmaId = documento
+                                .getString("turmaId")
+                                .orEmpty(),
+                            categoria = normalizarCategoriaPainel(
+                                documento
+                                    .getString("categoria")
+                                    .orEmpty()
+                            ),
+                            ativo = documento
+                                .getBoolean("ativo")
+                                ?: true
                         )
                     }
                 }
@@ -309,7 +789,12 @@ fun CatequistaOptionsScreen(navController: NavController) {
                     } else {
                         FrequenciaPainel(
                             alunoId = alunoId,
-                            status = documento.getString("status").orEmpty()
+                            turmaId = documento
+                                .getString("turmaId")
+                                .orEmpty(),
+                            status = documento
+                                .getString("status")
+                                .orEmpty()
                         )
                     }
                 }
@@ -407,6 +892,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
             }
 
         onDispose {
+            listenerTurmas.remove()
             listenerAlunos.remove()
             listenerEncontros.remove()
             listenerFrequencias.remove()
@@ -630,68 +1116,81 @@ fun CatequistaOptionsScreen(navController: NavController) {
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.height(7.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             PainelIndicadorCard(
                                 valor = totalCrismandosAtivos,
                                 titulo = "Crismandos ativos",
-                                detalhe = "Jovens e adultos",
+                                detalhe = "Resumo por turma",
                                 icone = Icons.Outlined.Groups,
                                 corDestaque = Crisma_Primary,
                                 corFundo = Color(0xFFFFFCFC),
-                                carregando = carregandoAlunos,
-                                modifier = Modifier.weight(1f)
+                                carregando = carregandoPainel,
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    showResumoTurmasDialog = true
+                                }
                             )
 
                             PainelIndicadorCard(
                                 valor = totalDocumentacaoPendente,
                                 titulo = "Documentação",
-                                detalhe = "Crismandos pendentes",
+                                detalhe = "Toque para visualizar",
                                 icone = Icons.Outlined.Description,
                                 corDestaque = Crisma_Primary,
                                 corFundo = Color(0xFFFFFCFC),
                                 carregando =
                                 carregandoAlunos ||
                                         carregandoDocumentos,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    showDocumentacaoPendenteDialog = true
+                                }
                             )
                         }
 
-                        Spacer(modifier = Modifier.height(3.dp))
+                        Spacer(modifier = Modifier.height(7.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
                             PainelIndicadorCard(
-                                valor = totalFrequenciaAbaixoDe75,
+                                valor = totalFrequenciaBaixa,
                                 titulo = "Frequência baixa",
-                                detalhe = "Abaixo de 75%",
+                                detalhe = "Mais de 20% de faltas",
                                 icone = Icons.Outlined.Assessment,
                                 corDestaque = Crisma_Primary,
                                 corFundo = Color(0xFFFFFCFC),
                                 carregando =
                                 carregandoAlunos ||
+                                        carregandoTurmas ||
                                         carregandoEncontros ||
                                         carregandoFrequencias,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    showFrequenciaBaixaDialog = true
+                                }
                             )
 
                             PainelIndicadorCard(
                                 valor = totalParcelasPendentes,
                                 titulo = "Parcelas pendentes",
-                                detalhe = "Total ainda não pago",
+                                detalhe = "Toque para visualizar",
                                 icone = Icons.Outlined.Payments,
                                 corDestaque = Crisma_Primary,
                                 corFundo = Color(0xFFFFFCFC),
                                 carregando =
                                 carregandoAlunos ||
                                         carregandoPagamentos,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                onClick = {
+                                    showParcelasPendentesDialog = true
+                                }
                             )
                         }
 
@@ -714,6 +1213,1053 @@ fun CatequistaOptionsScreen(navController: NavController) {
                 }
             }
         }
+    }
+
+    if (showResumoTurmasDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showResumoTurmasDialog = false
+            },
+            containerColor = Color(0xFFFAFAFA),
+            tonalElevation = 0.dp,
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showResumoTurmasDialog = false
+                    }
+                ) {
+                    Text(
+                        text = "Fechar",
+                        color = Crisma_Primary
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Groups,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Resumo das turmas",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                when {
+                    carregandoPainel -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(110.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Crisma_Primary,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    resumosTurmas.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment =
+                            Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector =
+                                Icons.Outlined.Groups,
+                                contentDescription = null,
+                                tint = Color.Gray,
+                                modifier = Modifier.size(34.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text =
+                                "Nenhuma turma possui crismandos ativos.",
+                                color = Color(0xFF444444),
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 470.dp)
+                                .verticalScroll(
+                                    rememberScrollState()
+                                )
+                        ) {
+                            Text(
+                                text =
+                                "$totalCrismandosAtivos crismando(s) ativo(s) em ${resumosTurmas.size} turma(s)",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            resumosTurmasAgrupados.forEach {
+                                    grupoCategoria ->
+
+                                CabecalhoCategoriaPainel(
+                                    titulo =
+                                    grupoCategoria.titulo,
+                                    quantidade =
+                                    grupoCategoria.resumos
+                                        .sumOf {
+                                            it.totalAtivos
+                                        }
+                                )
+
+                                grupoCategoria.resumos.forEach {
+                                        resumo ->
+
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(
+                                                vertical = 4.dp
+                                            ),
+                                        colors =
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                            Color.White
+                                        ),
+                                        elevation =
+                                        CardDefaults
+                                            .cardElevation(
+                                                defaultElevation =
+                                                1.dp
+                                            ),
+                                        border = BorderStroke(
+                                            width = 1.dp,
+                                            color =
+                                            Color(0xFFECECEC)
+                                        ),
+                                        shape =
+                                        RoundedCornerShape(
+                                            10.dp
+                                        )
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier =
+                                                Modifier.fillMaxWidth(),
+                                                verticalAlignment =
+                                                Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier =
+                                                    Modifier
+                                                        .size(32.dp)
+                                                        .background(
+                                                            color =
+                                                            Crisma_Primary
+                                                                .copy(
+                                                                    alpha =
+                                                                    0.08f
+                                                                ),
+                                                            shape =
+                                                            RoundedCornerShape(
+                                                                9.dp
+                                                            )
+                                                        ),
+                                                    contentAlignment =
+                                                    Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector =
+                                                        Icons.Outlined
+                                                            .Groups,
+                                                        contentDescription =
+                                                        null,
+                                                        tint =
+                                                        Crisma_Primary,
+                                                        modifier =
+                                                        Modifier
+                                                            .size(
+                                                                18.dp
+                                                            )
+                                                    )
+                                                }
+
+                                                Spacer(
+                                                    modifier =
+                                                    Modifier.width(
+                                                        9.dp
+                                                    )
+                                                )
+
+                                                Column(
+                                                    modifier =
+                                                    Modifier.weight(
+                                                        1f
+                                                    )
+                                                ) {
+                                                    Text(
+                                                        text =
+                                                        resumo.turmaNome,
+                                                        color =
+                                                        Color.Black,
+                                                        fontSize = 13.sp,
+                                                        fontWeight =
+                                                        FontWeight.Bold
+                                                    )
+
+                                                    Text(
+                                                        text =
+                                                        if (
+                                                            resumo.totalAtivos ==
+                                                            1
+                                                        ) {
+                                                            "1 crismando ativo"
+                                                        } else {
+                                                            "${resumo.totalAtivos} crismandos ativos"
+                                                        },
+                                                        color =
+                                                        Color.Gray,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+                                            }
+
+                                            HorizontalDivider(
+                                                modifier =
+                                                Modifier.padding(
+                                                    vertical = 8.dp
+                                                ),
+                                                color =
+                                                Color(0xFFF0F0F0),
+                                                thickness = 1.dp
+                                            )
+
+                                            Row(
+                                                modifier =
+                                                Modifier.fillMaxWidth(),
+                                                horizontalArrangement =
+                                                Arrangement.spacedBy(
+                                                    6.dp
+                                                )
+                                            ) {
+                                                MetricaResumoTurma(
+                                                    valor =
+                                                    resumo.totalAtivos,
+                                                    titulo = "Ativos",
+                                                    icone =
+                                                    Icons.Outlined
+                                                        .Person,
+                                                    modifier =
+                                                    Modifier.weight(
+                                                        1f
+                                                    )
+                                                )
+
+                                                MetricaResumoTurma(
+                                                    valor =
+                                                    resumo
+                                                        .totalDocumentacaoPendente,
+                                                    titulo =
+                                                    "Documentos",
+                                                    icone =
+                                                    Icons.Outlined
+                                                        .Description,
+                                                    modifier =
+                                                    Modifier.weight(
+                                                        1f
+                                                    )
+                                                )
+                                            }
+
+                                            Spacer(
+                                                modifier =
+                                                Modifier.height(
+                                                    6.dp
+                                                )
+                                            )
+
+                                            Row(
+                                                modifier =
+                                                Modifier.fillMaxWidth(),
+                                                horizontalArrangement =
+                                                Arrangement.spacedBy(
+                                                    6.dp
+                                                )
+                                            ) {
+                                                MetricaResumoTurma(
+                                                    valor =
+                                                    resumo
+                                                        .totalParcelasPendentes,
+                                                    titulo =
+                                                    "Parcelas",
+                                                    icone =
+                                                    Icons.Outlined
+                                                        .Payments,
+                                                    modifier =
+                                                    Modifier.weight(
+                                                        1f
+                                                    )
+                                                )
+
+                                                MetricaResumoTurma(
+                                                    valor =
+                                                    resumo
+                                                        .totalFrequenciaAlerta,
+                                                    titulo =
+                                                    "Em alerta",
+                                                    icone =
+                                                    Icons.Outlined
+                                                        .Assessment,
+                                                    modifier =
+                                                    Modifier.weight(
+                                                        1f
+                                                    )
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(
+                                    modifier =
+                                    Modifier.height(8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    if (showFrequenciaBaixaDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showFrequenciaBaixaDialog = false
+            },
+            containerColor = Color(0xFFFAFAFA),
+            tonalElevation = 0.dp,
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showFrequenciaBaixaDialog = false
+                    }
+                ) {
+                    Text(
+                        text = "Fechar",
+                        color = Crisma_Primary
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Assessment,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Frequência baixa",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                when {
+                    carregandoAlunos ||
+                            carregandoTurmas ||
+                            carregandoEncontros ||
+                            carregandoFrequencias -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Crisma_Primary,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    alunosComFrequenciaBaixa.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment =
+                            Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector =
+                                Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(34.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Nenhum crismando ativo possui mais de 20% de faltas.",
+                                color = Color(0xFF444444),
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 455.dp)
+                                .verticalScroll(
+                                    rememberScrollState()
+                                )
+                        ) {
+                            Text(
+                                text = "${alunosComFrequenciaBaixa.size} crismando(s) acima de 20% de faltas",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            frequenciaBaixaAgrupada.forEach {
+                                    grupoCategoria ->
+
+                                CabecalhoCategoriaPainel(
+                                    titulo = grupoCategoria.titulo,
+                                    quantidade = grupoCategoria.turmas
+                                        .sumOf { it.itens.size }
+                                )
+
+                                grupoCategoria.turmas.forEach {
+                                        grupoTurma ->
+
+                                    CabecalhoTurmaPainel(
+                                        nome = grupoTurma.turmaNome,
+                                        quantidade = grupoTurma.itens.size
+                                    )
+
+                                    grupoTurma.itens.forEach {
+                                            frequenciaBaixa ->
+
+                                        val aluno =
+                                            frequenciaBaixa.aluno
+
+                                        val percentualFormatado =
+                                            String.format(
+                                                Locale("pt", "BR"),
+                                                "%.0f%%",
+                                                frequenciaBaixa
+                                                    .percentualFaltas
+                                            )
+
+                                        val textoFaltas =
+                                            if (
+                                                frequenciaBaixa
+                                                    .quantidadeFaltas == 1
+                                            ) {
+                                                "1 falta"
+                                            } else {
+                                                "${frequenciaBaixa.quantidadeFaltas} faltas"
+                                            }
+
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 3.dp),
+                                            colors =
+                                            CardDefaults.cardColors(
+                                                containerColor =
+                                                Color.White
+                                            ),
+                                            elevation =
+                                            CardDefaults.cardElevation(
+                                                defaultElevation = 1.dp
+                                            ),
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = Color(0xFFEEEEEE)
+                                            ),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        horizontal = 10.dp,
+                                                        vertical = 9.dp
+                                                    ),
+                                                verticalAlignment =
+                                                Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .background(
+                                                            color =
+                                                            Crisma_Primary
+                                                                .copy(
+                                                                    alpha =
+                                                                    0.08f
+                                                                ),
+                                                            shape =
+                                                            RoundedCornerShape(
+                                                                9.dp
+                                                            )
+                                                        ),
+                                                    contentAlignment =
+                                                    Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector =
+                                                        Icons.Outlined
+                                                            .Assessment,
+                                                        contentDescription =
+                                                        null,
+                                                        tint = Crisma_Primary,
+                                                        modifier =
+                                                        Modifier.size(18.dp)
+                                                    )
+                                                }
+
+                                                Spacer(
+                                                    modifier =
+                                                    Modifier.width(9.dp)
+                                                )
+
+                                                Column(
+                                                    modifier =
+                                                    Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = aluno.nome,
+                                                        color = Color.Black,
+                                                        fontSize = 13.sp,
+                                                        fontWeight =
+                                                        FontWeight.Bold
+                                                    )
+
+                                                    Text(
+                                                        text =
+                                                        "Matrícula: ${aluno.id}",
+                                                        color = Color.Gray,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+
+                                                Column(
+                                                    horizontalAlignment =
+                                                    Alignment.End
+                                                ) {
+                                                    Text(
+                                                        text =
+                                                        percentualFormatado,
+                                                        color =
+                                                        Crisma_Primary,
+                                                        fontSize = 11.sp,
+                                                        fontWeight =
+                                                        FontWeight.Bold
+                                                    )
+
+                                                    Text(
+                                                        text =
+                                                        "$textoFaltas de ${frequenciaBaixa.totalEncontros}",
+                                                        color = Color.Gray,
+                                                        fontSize = 9.sp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(
+                                        modifier = Modifier.height(5.dp)
+                                    )
+                                }
+
+                                Spacer(
+                                    modifier = Modifier.height(8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    if (showDocumentacaoPendenteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showDocumentacaoPendenteDialog = false
+            },
+            containerColor = Color(0xFFFAFAFA),
+            tonalElevation = 0.dp,
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDocumentacaoPendenteDialog = false
+                    }
+                ) {
+                    Text(
+                        text = "Fechar",
+                        color = Crisma_Primary
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Description,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Documentação pendente",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                when {
+                    carregandoAlunos || carregandoTurmas || carregandoDocumentos -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Crisma_Primary,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    alunosComDocumentacaoPendente.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment =
+                            Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector =
+                                Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(34.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Todos os crismandos ativos estão com a documentação completa.",
+                                color = Color(0xFF444444),
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 455.dp)
+                                .verticalScroll(
+                                    rememberScrollState()
+                                )
+                        ) {
+                            Text(
+                                text = "${alunosComDocumentacaoPendente.size} crismando(s) com pendência",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            documentacaoPendenteAgrupada.forEach {
+                                    grupoCategoria ->
+
+                                CabecalhoCategoriaPainel(
+                                    titulo = grupoCategoria.titulo,
+                                    quantidade = grupoCategoria.turmas
+                                        .sumOf { it.itens.size }
+                                )
+
+                                grupoCategoria.turmas.forEach {
+                                        grupoTurma ->
+
+                                    CabecalhoTurmaPainel(
+                                        nome = grupoTurma.turmaNome,
+                                        quantidade = grupoTurma.itens.size
+                                    )
+
+                                    grupoTurma.itens.forEach { aluno ->
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 3.dp),
+                                            colors =
+                                            CardDefaults.cardColors(
+                                                containerColor =
+                                                Color.White
+                                            ),
+                                            elevation =
+                                            CardDefaults.cardElevation(
+                                                defaultElevation = 1.dp
+                                            ),
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = Color(0xFFEEEEEE)
+                                            ),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        horizontal = 10.dp,
+                                                        vertical = 9.dp
+                                                    ),
+                                                verticalAlignment =
+                                                Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .background(
+                                                            color =
+                                                            Crisma_Primary
+                                                                .copy(
+                                                                    alpha =
+                                                                    0.08f
+                                                                ),
+                                                            shape =
+                                                            RoundedCornerShape(
+                                                                9.dp
+                                                            )
+                                                        ),
+                                                    contentAlignment =
+                                                    Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector =
+                                                        Icons.Outlined
+                                                            .Description,
+                                                        contentDescription =
+                                                        null,
+                                                        tint = Crisma_Primary,
+                                                        modifier =
+                                                        Modifier.size(18.dp)
+                                                    )
+                                                }
+
+                                                Spacer(
+                                                    modifier =
+                                                    Modifier.width(9.dp)
+                                                )
+
+                                                Column(
+                                                    modifier =
+                                                    Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = aluno.nome,
+                                                        color = Color.Black,
+                                                        fontSize = 13.sp,
+                                                        fontWeight =
+                                                        FontWeight.Bold
+                                                    )
+
+                                                    Text(
+                                                        text =
+                                                        "Matrícula: ${aluno.id}",
+                                                        color = Color.Gray,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+
+                                                Text(
+                                                    text = "Pendente",
+                                                    color = Crisma_Primary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight =
+                                                    FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(
+                                        modifier = Modifier.height(5.dp)
+                                    )
+                                }
+
+                                Spacer(
+                                    modifier = Modifier.height(8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    if (showParcelasPendentesDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showParcelasPendentesDialog = false
+            },
+            containerColor = Color(0xFFFAFAFA),
+            tonalElevation = 0.dp,
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showParcelasPendentesDialog = false
+                    }
+                ) {
+                    Text(
+                        text = "Fechar",
+                        color = Crisma_Primary
+                    )
+                }
+            },
+            icon = {
+                Icon(
+                    imageVector = Icons.Outlined.Payments,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Parcelas pendentes",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                when {
+                    carregandoAlunos || carregandoTurmas || carregandoPagamentos -> {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(100.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Crisma_Primary,
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    }
+
+                    alunosComParcelasPendentes.isEmpty() -> {
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalAlignment =
+                            Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector =
+                                Icons.Outlined.CheckCircle,
+                                contentDescription = null,
+                                tint = Color(0xFF2E7D32),
+                                modifier = Modifier.size(34.dp)
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Todos os crismandos ativos estão com as parcelas pagas.",
+                                color = Color(0xFF444444),
+                                fontSize = 13.sp,
+                                lineHeight = 17.sp,
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+
+                    else -> {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 455.dp)
+                                .verticalScroll(
+                                    rememberScrollState()
+                                )
+                        ) {
+                            Text(
+                                text = "${alunosComParcelasPendentes.size} crismando(s) com parcela(s) pendente(s)",
+                                color = Color.Gray,
+                                fontSize = 11.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            parcelasPendentesAgrupadas.forEach {
+                                    grupoCategoria ->
+
+                                CabecalhoCategoriaPainel(
+                                    titulo = grupoCategoria.titulo,
+                                    quantidade = grupoCategoria.turmas
+                                        .sumOf { it.itens.size }
+                                )
+
+                                grupoCategoria.turmas.forEach {
+                                        grupoTurma ->
+
+                                    CabecalhoTurmaPainel(
+                                        nome = grupoTurma.turmaNome,
+                                        quantidade = grupoTurma.itens.size
+                                    )
+
+                                    grupoTurma.itens.forEach {
+                                            pendencia ->
+
+                                        val aluno = pendencia.aluno
+                                        val quantidade =
+                                            pendencia.quantidadeRestante
+
+                                        val textoRestante =
+                                            if (quantidade == 1) {
+                                                "resta 1"
+                                            } else {
+                                                "restam $quantidade"
+                                            }
+
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 3.dp),
+                                            colors =
+                                            CardDefaults.cardColors(
+                                                containerColor =
+                                                Color.White
+                                            ),
+                                            elevation =
+                                            CardDefaults.cardElevation(
+                                                defaultElevation = 1.dp
+                                            ),
+                                            border = BorderStroke(
+                                                width = 1.dp,
+                                                color = Color(0xFFEEEEEE)
+                                            ),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(
+                                                        horizontal = 10.dp,
+                                                        vertical = 9.dp
+                                                    ),
+                                                verticalAlignment =
+                                                Alignment.CenterVertically
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(32.dp)
+                                                        .background(
+                                                            color =
+                                                            Crisma_Primary
+                                                                .copy(
+                                                                    alpha =
+                                                                    0.08f
+                                                                ),
+                                                            shape =
+                                                            RoundedCornerShape(
+                                                                9.dp
+                                                            )
+                                                        ),
+                                                    contentAlignment =
+                                                    Alignment.Center
+                                                ) {
+                                                    Icon(
+                                                        imageVector =
+                                                        Icons.Outlined
+                                                            .Payments,
+                                                        contentDescription =
+                                                        null,
+                                                        tint = Crisma_Primary,
+                                                        modifier =
+                                                        Modifier.size(18.dp)
+                                                    )
+                                                }
+
+                                                Spacer(
+                                                    modifier =
+                                                    Modifier.width(9.dp)
+                                                )
+
+                                                Column(
+                                                    modifier =
+                                                    Modifier.weight(1f)
+                                                ) {
+                                                    Text(
+                                                        text = aluno.nome,
+                                                        color = Color.Black,
+                                                        fontSize = 13.sp,
+                                                        fontWeight =
+                                                        FontWeight.Bold
+                                                    )
+
+                                                    Text(
+                                                        text =
+                                                        "Matrícula: ${aluno.id}",
+                                                        color = Color.Gray,
+                                                        fontSize = 10.sp
+                                                    )
+                                                }
+
+                                                Text(
+                                                    text = textoRestante,
+                                                    color = Crisma_Primary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight =
+                                                    FontWeight.Bold
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Spacer(
+                                        modifier = Modifier.height(5.dp)
+                                    )
+                                }
+
+                                Spacer(
+                                    modifier = Modifier.height(8.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        )
     }
 
     if (showSobreNosDialog) {
@@ -780,24 +2326,164 @@ fun CatequistaOptionsScreen(navController: NavController) {
 }
 
 @Composable
+private fun CabecalhoCategoriaPainel(
+    titulo: String,
+    quantidade: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 6.dp)
+            .background(
+                color = Color(0xFFEEEEEE),
+                shape = RoundedCornerShape(9.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .width(4.dp)
+                .height(22.dp)
+                .background(
+                    color = Crisma_Primary,
+                    shape = RoundedCornerShape(4.dp)
+                )
+        )
+
+        Spacer(modifier = Modifier.width(8.dp))
+
+        Text(
+            text = titulo,
+            color = Color.Black,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Black,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = quantidade.toString(),
+            color = Crisma_Primary,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun CabecalhoTurmaPainel(
+    nome: String,
+    quantidade: Int
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                start = 4.dp,
+                end = 4.dp,
+                top = 5.dp,
+                bottom = 2.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Groups,
+            contentDescription = null,
+            tint = Crisma_Primary,
+            modifier = Modifier.size(15.dp)
+        )
+
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Text(
+            text = nome,
+            color = Color(0xFF3F3F3F),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = if (quantidade == 1) {
+                "1 nome"
+            } else {
+                "$quantidade nomes"
+            },
+            color = Color.Gray,
+            fontSize = 9.sp
+        )
+    }
+}
+
+@Composable
+private fun MetricaResumoTurma(
+    valor: Int,
+    titulo: String,
+    icone: ImageVector,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .background(
+                color = Color(0xFFF7F7F7),
+                shape = RoundedCornerShape(8.dp)
+            )
+            .padding(
+                horizontal = 8.dp,
+                vertical = 7.dp
+            ),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icone,
+            contentDescription = null,
+            tint = Crisma_Primary,
+            modifier = Modifier.size(16.dp)
+        )
+
+        Spacer(modifier = Modifier.width(6.dp))
+
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            Text(
+                text = valor.toString(),
+                color = Crisma_Primary,
+                fontSize = 14.sp,
+                lineHeight = 14.sp,
+                fontWeight = FontWeight.Black
+            )
+
+            Text(
+                text = titulo,
+                color = Color(0xFF555555),
+                fontSize = 9.sp,
+                lineHeight = 10.sp,
+                maxLines = 1
+            )
+        }
+    }
+}
+
+@Composable
 private fun PainelSairCard(
     onClick: () -> Unit
 ) {
     Card(
         onClick = onClick,
         modifier = Modifier
-            .width(128.dp)
-            .height(42.dp),
+            .width(118.dp)
+            .height(40.dp),
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = Color(0xFFF8F8F8)
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 1.dp
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = Color(0xFFF0F0F0)
+            color = Color(0xFFEDEDED)
         ),
         shape = RoundedCornerShape(10.dp)
     ) {
@@ -836,37 +2522,48 @@ private fun PainelIndicadorCard(
     @Suppress("UNUSED_PARAMETER")
     corFundo: Color,
     carregando: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null
 ) {
+    val modifierCard = modifier
+        .height(59.dp)
+        .then(
+            if (onClick != null) {
+                Modifier.clickable(onClick = onClick)
+            } else {
+                Modifier
+            }
+        )
+
     Card(
-        modifier = modifier.height(64.dp),
+        modifier = modifierCard,
         colors = CardDefaults.cardColors(
-            containerColor = Color.White
+            containerColor = Color(0xFFF8F8F8)
         ),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 1.dp
+            defaultElevation = 0.dp,
+            pressedElevation = 0.dp
         ),
         border = BorderStroke(
             width = 1.dp,
-            color = Color(0xFFF0F0F0)
+            color = Color(0xFFEDEDED)
         ),
         shape = RoundedCornerShape(10.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 8.dp, vertical = 4.dp),
+                .padding(horizontal = 8.dp, vertical = 3.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = icone,
                 contentDescription = null,
                 tint = Crisma_Primary,
-                modifier = Modifier.size(21.dp)
+                modifier = Modifier.size(19.dp)
             )
 
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(7.dp))
 
             Column(
                 modifier = Modifier
@@ -877,8 +2574,8 @@ private fun PainelIndicadorCard(
                 Text(
                     text = if (carregando) "—" else valor.toString(),
                     color = Crisma_Primary,
-                    fontSize = 20.sp,
-                    lineHeight = 20.sp,
+                    fontSize = 19.sp,
+                    lineHeight = 19.sp,
                     fontWeight = FontWeight.Black
                 )
 
