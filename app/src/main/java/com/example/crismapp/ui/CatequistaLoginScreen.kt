@@ -2,9 +2,15 @@ package com.example.crismapp.ui
 
 import android.app.Activity
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -22,12 +28,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -37,19 +47,35 @@ import androidx.core.view.WindowCompat
 import androidx.navigation.NavController
 import com.example.crismapp.R
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
 private val Light_Gray_Darker = Color(0xFFE0E0E0)
 private val customFont = FontFamily.Default
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class
+)
 @Composable
 fun CatequistaLoginScreen(navController: NavController) {
     val view = LocalView.current
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
+
+    val focusManager = LocalFocusManager.current
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val usernameBringIntoViewRequester = remember {
+        BringIntoViewRequester()
+    }
+
+    val passwordBringIntoViewRequester = remember {
+        BringIntoViewRequester()
+    }
 
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -94,7 +120,11 @@ fun CatequistaLoginScreen(navController: NavController) {
         modifier = Modifier.fillMaxSize()
     ) {
         Column(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(scrollState)
+                .imePadding()
+                .navigationBarsPadding()
         ) {
 
             // =====================================================
@@ -104,7 +134,7 @@ fun CatequistaLoginScreen(navController: NavController) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.65f)
+                    .height(screenHeight * 0.617f)
                     .background(Crisma_Primary)
                     .padding(
                         horizontal = 16.dp,
@@ -268,11 +298,9 @@ fun CatequistaLoginScreen(navController: NavController) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(0.35f)
+                    .heightIn(min = screenHeight * 0.35f)
                     .offset(y = -(screenHeight * 0.04f))
-                    .background(Color.White)
-                    .imePadding()
-                    .navigationBarsPadding(),
+                    .background(Color.White),
                 contentAlignment = Alignment.TopCenter
             ) {
                 if (animarFormulario) {
@@ -369,7 +397,20 @@ fun CatequistaLoginScreen(navController: NavController) {
                                     )
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(
+                                    usernameBringIntoViewRequester
+                                )
+                                .onFocusChanged { estadoFoco ->
+                                    if (estadoFoco.isFocused) {
+                                        coroutineScope.launch {
+                                            delay(250L)
+                                            usernameBringIntoViewRequester
+                                                .bringIntoView()
+                                        }
+                                    }
+                                },
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = Color(0xFFFBFBFB),
@@ -379,6 +420,17 @@ fun CatequistaLoginScreen(navController: NavController) {
                                 focusedLabelColor = Color(0xFF5F5F5F),
                                 unfocusedLabelColor = Color(0xFF707070),
                                 cursorColor = Crisma_Primary
+                            ),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Next
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onNext = {
+                                    focusManager.moveFocus(
+                                        FocusDirection.Down
+                                    )
+                                }
                             ),
                             singleLine = true,
                             enabled = !carregandoLogin
@@ -444,7 +496,20 @@ fun CatequistaLoginScreen(navController: NavController) {
                                     )
                                 }
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(
+                                    passwordBringIntoViewRequester
+                                )
+                                .onFocusChanged { estadoFoco ->
+                                    if (estadoFoco.isFocused) {
+                                        coroutineScope.launch {
+                                            delay(250L)
+                                            passwordBringIntoViewRequester
+                                                .bringIntoView()
+                                        }
+                                    }
+                                },
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedContainerColor = Color(0xFFFBFBFB),
@@ -461,7 +526,13 @@ fun CatequistaLoginScreen(navController: NavController) {
                                 PasswordVisualTransformation()
                             },
                             keyboardOptions = KeyboardOptions(
-                                keyboardType = KeyboardType.NumberPassword
+                                keyboardType = KeyboardType.NumberPassword,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    focusManager.clearFocus()
+                                }
                             ),
                             singleLine = true,
                             enabled = !carregandoLogin
@@ -538,6 +609,7 @@ fun CatequistaLoginScreen(navController: NavController) {
 
                             Card(
                                 onClick = {
+                                    focusManager.clearFocus()
                                     carregandoLogin = true
                                     mensagemErro = ""
 

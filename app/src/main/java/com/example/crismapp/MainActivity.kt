@@ -51,39 +51,47 @@ class MainActivity : ComponentActivity() {
         }
 
         setContent {
-            MaterialTheme {
-                CrismAppPadraoVisual {
-                    Surface(
-                        modifier = Modifier.fillMaxSize(),
-                        color = MaterialTheme.colorScheme.background
-                    ) {
-                        if (!showMainContent) {
-                            Box(
+            /*
+             * CrismAppPadraoVisual envolve todo o aplicativo.
+             *
+             * Ele fixa:
+             * - família da fonte;
+             * - tamanho dos estilos do Material 3;
+             * - altura das linhas;
+             * - espaçamento entre letras;
+             * - escala de fonte em 1f.
+             */
+            CrismAppPadraoVisual {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    if (!showMainContent) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(Color(0xFFFF0000))
+                        ) {
+                            Text(
+                                text = "Paróquia Santo Antônio - Tiúma",
+                                color = Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .background(Color(0xFFFF0000))
-                            ) {
-                                Text(
-                                    text = "Paróquia Santo Antônio - Tiúma",
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(
-                                            bottom = 48.dp,
-                                            end = 24.dp
-                                        )
-                                )
-                            }
-                        } else {
-                            val navController =
-                                rememberNavController()
-
-                            NavGraph(
-                                navController = navController
+                                    .align(Alignment.BottomEnd)
+                                    .padding(
+                                        bottom = 48.dp,
+                                        end = 24.dp
+                                    )
                             )
                         }
+                    } else {
+                        val navController =
+                            rememberNavController()
+
+                        NavGraph(
+                            navController = navController
+                        )
                     }
                 }
             }

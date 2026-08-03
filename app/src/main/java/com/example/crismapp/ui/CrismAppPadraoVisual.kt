@@ -5,65 +5,148 @@ import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.sp
 
 /*
- * Fonte padrão atual do CrismAPP.
+ * Padrão tipográfico global do CrismAPP.
  *
- * FontFamily.Default corresponde à fonte padrão usada atualmente
- * nas telas do aplicativo.
+ * FontFamily.SansSerif mantém uma fonte sem serifa consistente
+ * em todas as telas, evitando variações causadas por fontes
+ * decorativas configuradas no aparelho.
  */
-val CrismAppFontFamily: FontFamily = FontFamily.Default
+val CrismAppFontFamily: FontFamily = FontFamily.SansSerif
 
 /*
- * Aplica a mesma família de fonte em todos os estilos do Material 3.
+ * Todos os tamanhos, alturas de linha e espaçamentos foram
+ * definidos manualmente.
  *
- * Os tamanhos já definidos diretamente nas telas, como 11.sp,
- * 14.sp, 16.sp e 24.sp, continuam exatamente como estão.
+ * Textos que já possuem fontSize diretamente nas telas mantêm
+ * aquele tamanho, mas continuam protegidos pelo fontScale = 1f.
  */
-private fun TextStyle.comFonteCrismApp(): TextStyle {
-    return copy(fontFamily = CrismAppFontFamily)
-}
-
-private fun Typography.comFonteCrismApp(): Typography {
-    return copy(
-        displayLarge = displayLarge.comFonteCrismApp(),
-        displayMedium = displayMedium.comFonteCrismApp(),
-        displaySmall = displaySmall.comFonteCrismApp(),
-        headlineLarge = headlineLarge.comFonteCrismApp(),
-        headlineMedium = headlineMedium.comFonteCrismApp(),
-        headlineSmall = headlineSmall.comFonteCrismApp(),
-        titleLarge = titleLarge.comFonteCrismApp(),
-        titleMedium = titleMedium.comFonteCrismApp(),
-        titleSmall = titleSmall.comFonteCrismApp(),
-        bodyLarge = bodyLarge.comFonteCrismApp(),
-        bodyMedium = bodyMedium.comFonteCrismApp(),
-        bodySmall = bodySmall.comFonteCrismApp(),
-        labelLarge = labelLarge.comFonteCrismApp(),
-        labelMedium = labelMedium.comFonteCrismApp(),
-        labelSmall = labelSmall.comFonteCrismApp()
+private val CrismAppTypography = Typography(
+    displayLarge = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 32.sp,
+        lineHeight = 38.sp,
+        letterSpacing = 0.sp
+    ),
+    displayMedium = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp,
+        letterSpacing = 0.sp
+    ),
+    displaySmall = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+        letterSpacing = 0.sp
+    ),
+    headlineLarge = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 24.sp,
+        lineHeight = 30.sp,
+        letterSpacing = 0.sp
+    ),
+    headlineMedium = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 21.sp,
+        lineHeight = 27.sp,
+        letterSpacing = 0.sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 19.sp,
+        lineHeight = 24.sp,
+        letterSpacing = 0.sp
+    ),
+    titleLarge = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Bold,
+        fontSize = 18.sp,
+        lineHeight = 23.sp,
+        letterSpacing = 0.sp
+    ),
+    titleMedium = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.sp
+    ),
+    titleSmall = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 14.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.sp
+    ),
+    bodyLarge = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 15.sp,
+        lineHeight = 20.sp,
+        letterSpacing = 0.sp
+    ),
+    bodyMedium = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 13.sp,
+        lineHeight = 18.sp,
+        letterSpacing = 0.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.Normal,
+        fontSize = 11.sp,
+        lineHeight = 15.sp,
+        letterSpacing = 0.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 13.sp,
+        lineHeight = 16.sp,
+        letterSpacing = 0.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 11.sp,
+        lineHeight = 14.sp,
+        letterSpacing = 0.sp
+    ),
+    labelSmall = TextStyle(
+        fontFamily = CrismAppFontFamily,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 9.sp,
+        lineHeight = 12.sp,
+        letterSpacing = 0.sp
     )
-}
+)
 
-/*
- * Envolva todo o NavGraph com este componente.
- *
- * fontScale = 1f impede que a configuração de tamanho de fonte
- * do aparelho aumente ou diminua os textos do aplicativo.
- *
- * A densidade física da tela continua normal; somente a escala
- * tipográfica fica fixa.
- */
 @Composable
 fun CrismAppPadraoVisual(
     content: @Composable () -> Unit
 ) {
     val densidadeAtual = LocalDensity.current
 
+    /*
+     * Impede que o tamanho de fonte configurado no aparelho
+     * aumente ou diminua os textos do aplicativo.
+     */
     val densidadeComFonteFixa = remember(
         densidadeAtual.density
     ) {
@@ -73,27 +156,6 @@ fun CrismAppPadraoVisual(
         )
     }
 
-    /*
-     * Mantém exatamente os tamanhos e pesos do tema que o projeto
-     * já utiliza, trocando apenas a família para a fonte padrão
-     * escolhida pelo CrismAPP.
-     */
-    val tipografiaAtual = MaterialTheme.typography
-
-    val tipografiaPadronizada = remember(
-        tipografiaAtual
-    ) {
-        tipografiaAtual.comFonteCrismApp()
-    }
-
-    /*
-     * Substitui as cores roxas padrão do Material 3 pela paleta
-     * oficial usada no CrismAPP.
-     *
-     * Componentes que não receberam cor manualmente, como chips,
-     * campos, botões, indicadores e seletores, passam a usar
-     * vermelho, branco e cinza automaticamente.
-     */
     val esquemaAtual = MaterialTheme.colorScheme
 
     val esquemaCrismApp = remember(esquemaAtual) {
@@ -117,14 +179,7 @@ fun CrismAppPadraoVisual(
             onBackground = Color(0xFF1F1F1F),
             surface = Color.White,
             onSurface = Color(0xFF1F1F1F),
-
-            /*
-             * Impede o Material 3 de aplicar a tonalidade da cor
-             * primária sobre cartões elevados. Sem isso, cartões
-             * brancos podem parecer levemente azulados ou rosados.
-             */
             surfaceTint = Color.Transparent,
-
             surfaceVariant = Color(0xFFF7F7F7),
             onSurfaceVariant = Color(0xFF555555),
             outline = Color(0xFFD8D8D8),
@@ -138,7 +193,7 @@ fun CrismAppPadraoVisual(
     ) {
         MaterialTheme(
             colorScheme = esquemaCrismApp,
-            typography = tipografiaPadronizada,
+            typography = CrismAppTypography,
             shapes = MaterialTheme.shapes,
             content = content
         )

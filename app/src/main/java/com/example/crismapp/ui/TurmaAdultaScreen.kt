@@ -908,133 +908,463 @@ fun TurmaAdultaScreen(navController: NavController) {
 
     if (showTurmasPopup && possuiPermissaoTotal) {
         val titTurma = when {
-            modoCriarTurma -> "Nova Turma"
-            idTurmaSelecionada != null -> "Editar: $nomeTurmaSelecionada"
-            else -> "Gerenciar Turmas"
+            modoCriarTurma ->
+                "Nova turma Adulta"
+
+            idTurmaSelecionada != null ->
+                nomeTurmaSelecionada
+                    ?.let { "Turma: $it" }
+                    ?: "Gerenciar turma"
+
+            else ->
+                "Gerenciar turmas adulta"
         }
-        CustomPopupAdulta(title = titTurma, onDismiss = { showTurmasPopup = false }) {
+
+        CustomPopupAdulta(
+            title = titTurma,
+            onDismiss = {
+                showTurmasPopup = false
+                modoCriarTurma = false
+                novoNomeTurma = ""
+                novoNomeCrismando = ""
+                idTurmaSelecionada = null
+                nomeTurmaSelecionada = null
+            }
+        ) {
             if (modoCriarTurma) {
                 item {
-                    OutlinedTextField(value = novoNomeTurma, onValueChange = { novoNomeTurma = it }, label = { Text("Nome da Turma") }, modifier = Modifier.fillMaxWidth())
-                    Button(
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para as turmas",
                         onClick = {
-                            if (novoNomeTurma.isNotBlank()) {
-                                FirebaseRepository.criarTurma(
-                                    nome = novoNomeTurma,
-                                    categoria = "adulta",
-                                    onSuccess = { turmaCriada ->
+                            modoCriarTurma = false
+                            novoNomeTurma = ""
+                        }
+                    )
+
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo = "Criar nova turma",
+                        descricao =
+                        "Informe um nome claro para identificar a turma.",
+                        icone = Icons.Outlined.Add
+                    )
+                }
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8F8F8)
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFEEEEEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 0.dp
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            OutlinedTextField(
+                                value = novoNomeTurma,
+                                onValueChange = {
+                                    novoNomeTurma = it.take(40)
+                                },
+                                label = {
+                                    Text("Nome da turma")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector =
+                                        Icons.Outlined.Groups,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    unfocusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    focusedBorderColor =
+                                    Crisma_Primary,
+                                    unfocusedBorderColor =
+                                    Color(0xFFE2E2E2),
+                                    cursorColor =
+                                    Crisma_Primary
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(10.dp))
+
+                            Button(
+                                onClick = {
+                                    val nomeTratado =
+                                        novoNomeTurma.trim()
+
+                                    if (nomeTratado.isBlank()) {
                                         Toast.makeText(
                                             context,
-                                            "Turma criada: ${turmaCriada.id}",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                        novoNomeTurma = ""
-                                        modoCriarTurma = false
-                                    },
-                                    onError = { erro ->
-                                        Toast.makeText(
-                                            context,
-                                            erro.message ?: "Erro ao criar a turma.",
+                                            "Digite o nome da turma.",
                                             Toast.LENGTH_SHORT
                                         ).show()
-                                    }
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary),
-                        shape = RoundedCornerShape(10.dp)
-                    ) { Text("Criar Turma", fontWeight = FontWeight.Bold) }
-                    TextButton(onClick = { modoCriarTurma = false }, modifier = Modifier.fillMaxWidth()) { Text("Cancelar", color = Color.Gray) }
-                }
-            } else if (idTurmaSelecionada == null) {
-                items(listaTurmasFirestore) { turma ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp), colors = CardDefaults.cardColors(containerColor = Color.White), border = BorderStroke(1.dp, Color(0xFFF0F0F0)), shape = RoundedCornerShape(10.dp)) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Text(turma.nome, fontWeight = FontWeight.Bold, color = Color.Black, modifier = Modifier.weight(1f))
-                            IconButton(onClick = {
-                                idTurmaSelecionada = turma.id
-                                nomeTurmaSelecionada = turma.nome
-                            }) { Icon(Icons.Outlined.Edit, "Editar", tint = Color.Gray) }
+                                    } else {
+                                        FirebaseRepository
+                                            .criarTurma(
+                                                nome = nomeTratado,
+                                                categoria = "adulta",
+                                                onSuccess = {
+                                                        turmaCriada ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Turma criada: ${turmaCriada.id}",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
 
-                            IconButton(onClick = {
-                                idTurmaParaExcluir = turma.id
-                                nomeTurmaParaExcluir = turma.nome
-                            }) {
-                                Icon(Icons.Outlined.Delete, "Excluir", tint = Color.Red.copy(0.7f))
+                                                    novoNomeTurma = ""
+                                                    modoCriarTurma =
+                                                        false
+                                                },
+                                                onError = { erro ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        erro.message
+                                                            ?: "Erro ao criar a turma.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor =
+                                    Crisma_Primary
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Outlined.Add,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(7.dp))
+
+                                Text(
+                                    text = "Criar turma",
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
                     }
                 }
+            } else if (idTurmaSelecionada == null) {
                 item {
-                    Button(onClick = { modoCriarTurma = true }, modifier = Modifier.fillMaxWidth().padding(top = 16.dp), colors = ButtonDefaults.buttonColors(containerColor = Crisma_Primary), shape = RoundedCornerShape(10.dp)) {
-                        Icon(Icons.Outlined.Add, null); Spacer(Modifier.width(8.dp)); Text("Nova Turma", fontWeight = FontWeight.Bold)
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo = "Gerencie as turmas",
+                        descricao =
+                        "Abra uma turma para administrar crismandos e documentos.",
+                        icone = Icons.Outlined.Groups
+                    )
+                }
+
+                items(listaTurmasFirestore) { turma ->
+                    val quantidadeDaTurma =
+                        listaCrismandosFirestore.count {
+                            it.turmaId == turma.id
+                        }
+
+                    CardTurmaAdministrativaAdulto(
+                        nome = turma.nome,
+                        quantidadeCrismandos =
+                        quantidadeDaTurma,
+                        onAbrir = {
+                            idTurmaSelecionada =
+                                turma.id
+                            nomeTurmaSelecionada =
+                                turma.nome
+                        },
+                        onExcluir = {
+                            idTurmaParaExcluir =
+                                turma.id
+                            nomeTurmaParaExcluir =
+                                turma.nome
+                        }
+                    )
+                }
+
+                if (listaTurmasFirestore.isEmpty()) {
+                    item {
+                        Text(
+                            text = "Nenhuma turma cadastrada.",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+
+                item {
+                    Button(
+                        onClick = {
+                            modoCriarTurma = true
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp),
+                        colors =
+                        ButtonDefaults.buttonColors(
+                            containerColor =
+                            Crisma_Primary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+
+                        Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = "Nova turma",
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             } else {
                 item {
-                    TextButton(onClick = { idTurmaSelecionada = null; nomeTurmaSelecionada = null }) {
-                        Icon(Icons.Outlined.ArrowBack, null, modifier = Modifier.size(16.dp), tint = Crisma_Primary)
-                        Text(" Voltar", color = Crisma_Primary)
-                    }
-                    OutlinedTextField(
-                        value = novoNomeCrismando,
-                        onValueChange = { novoNomeCrismando = it },
-                        placeholder = { Text("Nome do Crismando...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        trailingIcon = {
-                            IconButton(onClick = {
-                                if (novoNomeCrismando.isNotBlank()) {
-                                    FirebaseRepository.criarCrismando(
-                                        nome = novoNomeCrismando,
-                                        turmaId = idTurmaSelecionada!!,
-                                        categoria = "adulta",
-                                        onSuccess = { crismandoCriado ->
-                                            Toast.makeText(
-                                                context,
-                                                "Adicionado! Código: ${crismandoCriado.obterMatricula()}",
-                                                Toast.LENGTH_LONG
-                                            ).show()
-                                            novoNomeCrismando = ""
-                                        },
-                                        onError = { erro ->
-                                            Toast.makeText(
-                                                context,
-                                                erro.message ?: "Erro ao cadastrar o crismando.",
-                                                Toast.LENGTH_SHORT
-                                            ).show()
-                                        }
-                                    )
-                                }
-                            }) { Icon(Icons.Outlined.AddCircle, null, tint = Crisma_Primary) }
+                    BotaoVoltarGestaoAdulto(
+                        texto = "Voltar para as turmas",
+                        onClick = {
+                            idTurmaSelecionada = null
+                            nomeTurmaSelecionada = null
+                            novoNomeCrismando = ""
                         }
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+
+                    MensagemOrientacaoGestaoAdulto(
+                        titulo =
+                        nomeTurmaSelecionada
+                            ?: "Crismandos da turma",
+                        descricao =
+                        "Adicione crismandos e gerencie documentos ou arquivamentos.",
+                        icone = Icons.Outlined.Groups
+                    )
                 }
-                items(listaCrismandosFirestore) { crismando ->
-                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 2.dp), colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
-                        Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(crismando.nome, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                                Text("Matrícula: ${crismando.id}", fontSize = 11.sp, color = Color.Gray)
-                            }
-                            IconButton(onClick = {
-                                crismandoDocumentosSelecionado = crismando
-                                abaDocumentosSelecionada = PerfilDocumentacao.CRISMANDO
-                                responsavelDocumentosInput = ""
-                                showDocumentosDialog = true
-                            }) {
-                                Icon(Icons.Outlined.Description, "Documentos", tint = Crisma_Primary)
+
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF8F8F8)
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFEEEEEE)
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 0.dp
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp)
+                        ) {
+                            Row(
+                                verticalAlignment =
+                                Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector =
+                                    Icons.Outlined.PersonAdd,
+                                    contentDescription = null,
+                                    tint = Crisma_Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+
+                                Spacer(
+                                    modifier = Modifier.width(8.dp)
+                                )
+
+                                Column {
+                                    Text(
+                                        text = "Adicionar crismando",
+                                        color = Color.Black,
+                                        fontSize = 12.sp,
+                                        fontWeight =
+                                        FontWeight.Bold
+                                    )
+
+                                    Text(
+                                        text =
+                                        "O código de matrícula será criado automaticamente.",
+                                        color = Color(0xFF666666),
+                                        fontSize = 10.sp,
+                                        lineHeight = 12.sp
+                                    )
+                                }
                             }
 
-                            IconButton(onClick = {
-                                crismandoParaArquivar = crismando
-                                motivoArquivamentoInput = ""
-                                responsavelArquivamentoInput = ""
-                            }) {
-                                Icon(Icons.Outlined.Archive, "Arquivar", tint = Color.Red.copy(alpha = 0.65f))
+                            Spacer(modifier = Modifier.height(9.dp))
+
+                            OutlinedTextField(
+                                value = novoNomeCrismando,
+                                onValueChange = {
+                                    novoNomeCrismando =
+                                        it.take(60)
+                                },
+                                label = {
+                                    Text("Nome do crismando")
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector =
+                                        Icons.Outlined.Person,
+                                        contentDescription = null,
+                                        tint = Crisma_Primary
+                                    )
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                shape = RoundedCornerShape(10.dp),
+                                colors =
+                                OutlinedTextFieldDefaults.colors(
+                                    focusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    unfocusedContainerColor =
+                                    Color(0xFFFBFBFB),
+                                    focusedBorderColor =
+                                    Crisma_Primary,
+                                    unfocusedBorderColor =
+                                    Color(0xFFE2E2E2),
+                                    cursorColor =
+                                    Crisma_Primary
+                                )
+                            )
+
+                            Spacer(modifier = Modifier.height(9.dp))
+
+                            Button(
+                                onClick = {
+                                    val nomeTratado =
+                                        novoNomeCrismando.trim()
+
+                                    if (nomeTratado.isBlank()) {
+                                        Toast.makeText(
+                                            context,
+                                            "Digite o nome do crismando.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    } else {
+                                        FirebaseRepository
+                                            .criarCrismando(
+                                                nome = nomeTratado,
+                                                turmaId =
+                                                idTurmaSelecionada!!,
+                                                categoria =
+                                                "adulta",
+                                                onSuccess = {
+                                                        crismandoCriado ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Adicionado. Código: ${crismandoCriado.obterMatricula()}",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+
+                                                    novoNomeCrismando =
+                                                        ""
+                                                },
+                                                onError = { erro ->
+                                                    Toast.makeText(
+                                                        context,
+                                                        erro.message
+                                                            ?: "Erro ao cadastrar o crismando.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors =
+                                ButtonDefaults.buttonColors(
+                                    containerColor =
+                                    Crisma_Primary
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(
+                                    imageVector =
+                                    Icons.Outlined.PersonAdd,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(7.dp))
+
+                                Text(
+                                    text = "Adicionar crismando",
+                                    fontWeight = FontWeight.Bold
+                                )
                             }
                         }
+                    }
+                }
+
+                items(listaCrismandosFirestore) { crismando ->
+                    CardCrismandoAdministrativoAdulto(
+                        nome = crismando.nome,
+                        matricula = crismando.id,
+                        onDocumentos = {
+                            crismandoDocumentosSelecionado =
+                                crismando
+                            abaDocumentosSelecionada =
+                                PerfilDocumentacao.CRISMANDO
+                            responsavelDocumentosInput =
+                                ""
+                            showDocumentosDialog =
+                                true
+                        },
+                        onArquivar = {
+                            crismandoParaArquivar =
+                                crismando
+                            motivoArquivamentoInput =
+                                ""
+                            responsavelArquivamentoInput =
+                                ""
+                        }
+                    )
+                }
+
+                if (listaCrismandosFirestore.isEmpty()) {
+                    item {
+                        Text(
+                            text =
+                            "Nenhum crismando ativo nesta turma.",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
@@ -1302,7 +1632,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                             if (anoInserido < 2026) {
                                                 Toast.makeText(
                                                     context,
-                                                    "O ano não pode ser menor que 2026!",
+                                                    "O ano não pode ser menor que 2026",
                                                     Toast.LENGTH_SHORT
                                                 ).show()
                                             } else {
@@ -1324,7 +1654,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                                             Toast
                                                                 .makeText(
                                                                     context,
-                                                                    "Data atualizada!",
+                                                                    "Data atualizada",
                                                                     Toast.LENGTH_SHORT
                                                                 )
                                                                 .show()
@@ -1348,7 +1678,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                         } else {
                                             Toast.makeText(
                                                 context,
-                                                "Digite os 8 números da data!",
+                                                "Digite os 8 números da data",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         }
@@ -1494,7 +1824,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                         if (anoInserido < 2026) {
                                             Toast.makeText(
                                                 context,
-                                                "O ano não pode ser menor que 2026!",
+                                                "O ano não pode ser menor que 2026",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                         } else {
@@ -1526,7 +1856,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                                     onSuccess = {
                                                         Toast.makeText(
                                                             context,
-                                                            "Encontro $proximoNumero adicionado!",
+                                                            "Encontro $proximoNumero adicionado",
                                                             Toast.LENGTH_SHORT
                                                         ).show()
 
@@ -1547,7 +1877,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                     } else {
                                         Toast.makeText(
                                             context,
-                                            "Digite a data completa com 8 números!",
+                                            "Digite a data completa com 8 números",
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -1891,7 +2221,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                                     ) {
                                                         Toast.makeText(
                                                             context,
-                                                            "Chamada de Adultos salva com sucesso!",
+                                                            "Chamada de Adultos salva com sucesso",
                                                             Toast.LENGTH_SHORT
                                                         ).show()
 
@@ -2803,7 +3133,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                         onSuccess = {
                                             Toast.makeText(
                                                 context,
-                                                "Aviso publicado com sucesso!",
+                                                "Aviso publicado com sucesso",
                                                 Toast.LENGTH_SHORT
                                             ).show()
                                             novoAvisoTexto = ""
@@ -2913,7 +3243,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                         responsavel = responsavelDocumentosInput,
                         onSuccess = {
                             carregandoDocumentosCadastro = false
-                            Toast.makeText(context, "Documentos salvos!", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Documentos salvos", Toast.LENGTH_SHORT).show()
                         },
                         onError = { erro ->
                             carregandoDocumentosCadastro = false
@@ -3067,7 +3397,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 onSuccess = {
                                     Toast.makeText(
                                         context,
-                                        "Encontro e frequências removidos!",
+                                        "Encontro e frequências removidos",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     idEncontroParaExcluir = null
@@ -3161,7 +3491,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 onSuccess = {
                                     Toast.makeText(
                                         context,
-                                        "Aviso removido com sucesso!",
+                                        "Aviso removido com sucesso",
                                         Toast.LENGTH_SHORT
                                     ).show()
                                     idAvisoParaExcluir = null
@@ -3361,7 +3691,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                                 onSuccess = {
                                     Toast.makeText(
                                         context,
-                                        "Parcela registrada no Firebase!",
+                                        "Parcela registrada no Firebase",
                                         Toast.LENGTH_SHORT
                                     ).show()
 
@@ -3541,6 +3871,272 @@ private fun CardSelecaoGestaoAdulto(
                 tint = Crisma_Primary,
                 modifier = Modifier.size(14.dp)
             )
+        }
+    }
+}
+
+
+@Composable
+private fun CardTurmaAdministrativaAdulto(
+    nome: String,
+    quantidadeCrismandos: Int,
+    onAbrir: () -> Unit,
+    onExcluir: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF8F8F8)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFEEEEEE)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Groups,
+                    contentDescription = null,
+                    tint = Crisma_Primary,
+                    modifier = Modifier.size(22.dp)
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = nome,
+                        color = Color.Black,
+                        fontSize = 13.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text =
+                        if (quantidadeCrismandos == 1) {
+                            "1 crismando ativo"
+                        } else {
+                            "$quantidadeCrismandos crismandos ativos"
+                        },
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onAbrir,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFFFFF8F8),
+                        contentColor = Crisma_Primary
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = Crisma_Primary.copy(alpha = 0.45f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Edit,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Text(
+                        text = "Abrir turma",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onExcluir,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFFFAFAFA),
+                        contentColor = Crisma_Primary
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = Color(0xFFE2E2E2)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 8.dp),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Delete,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(6.dp))
+
+                    Text(
+                        text = "Excluir",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardCrismandoAdministrativoAdulto(
+    nome: String,
+    matricula: String,
+    onDocumentos: () -> Unit,
+    onArquivar: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFFF8F8F8)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color(0xFFEEEEEE)
+        ),
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 0.dp
+        ),
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Person,
+                    contentDescription = null,
+                    tint = Crisma_Primary,
+                    modifier = Modifier.size(21.dp)
+                )
+
+                Spacer(modifier = Modifier.width(9.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = nome,
+                        color = Color.Black,
+                        fontSize = 13.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Text(
+                        text = "Matrícula: $matricula",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        lineHeight = 12.sp
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onDocumentos,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFFFFF8F8),
+                        contentColor = Crisma_Primary
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = Crisma_Primary.copy(alpha = 0.45f)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 7.dp),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Description,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(5.dp))
+
+                    Text(
+                        text = "Documentos",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = onArquivar,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = Color(0xFFFAFAFA),
+                        contentColor = Crisma_Primary
+                    ),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = Color(0xFFE2E2E2)
+                    ),
+                    contentPadding = PaddingValues(horizontal = 7.dp),
+                    shape = RoundedCornerShape(9.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Outlined.Archive,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp)
+                    )
+
+                    Spacer(modifier = Modifier.width(5.dp))
+
+                    Text(
+                        text = "Arquivar",
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
     }
 }
