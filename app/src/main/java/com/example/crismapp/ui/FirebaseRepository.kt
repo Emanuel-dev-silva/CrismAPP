@@ -1312,7 +1312,37 @@ object FirebaseRepository {
             StatusCasamentoDocumento.NAO_INFORMADO -> Unit
         }
 
-        lote.commit().addOnSuccessListener { onSuccess() }.addOnFailureListener(onError)
+        AuditoriaRepository.adicionarAoLote(
+            lote = lote,
+            tipo = TipoEventoAuditoria.DOCUMENTOS_ATUALIZADOS,
+            entidade = EntidadeAuditoria.DOCUMENTOS,
+            documentoOrigemId = configuracaoId,
+            alunoId = matriculaTratada,
+            turmaId = turmaTratada,
+            dadosNovos = mapOf(
+                "perfil" to perfil.name,
+                "primeiraComunhaoPossui" to
+                        cadastro.primeiraComunhaoPossui,
+                "primeiraComunhaoEntregue" to
+                        cadastro.primeiraComunhaoEntregue,
+                "batismoEntregue" to cadastro.batismoEntregue,
+                "crismaPossui" to cadastro.crismaPossui,
+                "crismaEntregue" to cadastro.crismaEntregue,
+                "identificacaoEntregue" to
+                        cadastro.identificacaoEntregue,
+                "tipoIdentificacao" to
+                        cadastro.obterTipoIdentificacao().name,
+                "identificacaoOutro" to
+                        cadastro.identificacaoOutro.trim(),
+                "casamentoStatus" to
+                        cadastro.obterStatusCasamento().name
+            ),
+            responsavelInformado = responsavelTratado
+        )
+
+        lote.commit()
+            .addOnSuccessListener { onSuccess() }
+            .addOnFailureListener(onError)
     }
 
     // ==========================================================
@@ -1503,28 +1533,77 @@ object FirebaseRepository {
         val referencia = db.collection(COLECAO_FREQUENCIAS)
             .document(frequenciaId)
 
-        if (status == StatusFrequencia.NENHUM) {
-            referencia.delete()
-                .addOnSuccessListener {
-                    onSuccess()
+        /*
+         * A tela envia todos os crismandos ao salvar a chamada.
+         * Esta leitura evita criar eventos de auditoria para alunos
+         * cujo status não mudou.
+         */
+        referencia.get()
+            .addOnSuccessListener { documentoAtual ->
+                val statusAtualTexto = documentoAtual
+                    .getString("status")
+                    ?.trim()
+                    ?.uppercase(Locale.ROOT)
+                    ?: StatusFrequencia.NENHUM.name
+
+                val statusAtual = try {
+                    StatusFrequencia.valueOf(statusAtualTexto)
+                } catch (_: IllegalArgumentException) {
+                    StatusFrequencia.NENHUM
                 }
-                .addOnFailureListener(onError)
 
-            return
-        }
+                if (statusAtual == status) {
+                    onSuccess()
+                    return@addOnSuccessListener
+                }
 
-        val dadosFrequencia = hashMapOf<String, Any>(
-            "alunoId" to matriculaTratada,
-            "turmaId" to turmaId,
-            "encontro" to encontro,
-            "status" to status.name,
-            "dataRegistro" to System.currentTimeMillis()
-        )
+                val lote = db.batch()
 
-        referencia
-            .set(dadosFrequencia)
-            .addOnSuccessListener {
-                onSuccess()
+                val tipoEvento = if (
+                    status == StatusFrequencia.NENHUM
+                ) {
+                    lote.delete(referencia)
+                    TipoEventoAuditoria.FREQUENCIA_REMOVIDA
+                } else {
+                    val dadosFrequencia =
+                        hashMapOf<String, Any>(
+                            "alunoId" to matriculaTratada,
+                            "turmaId" to turmaId,
+                            "encontro" to encontro,
+                            "status" to status.name,
+                            "dataRegistro" to
+                                    System.currentTimeMillis()
+                        )
+
+                    lote.set(
+                        referencia,
+                        dadosFrequencia
+                    )
+
+                    TipoEventoAuditoria.FREQUENCIA_REGISTRADA
+                }
+
+                AuditoriaRepository.adicionarAoLote(
+                    lote = lote,
+                    tipo = tipoEvento,
+                    entidade = EntidadeAuditoria.FREQUENCIA,
+                    documentoOrigemId = frequenciaId,
+                    alunoId = matriculaTratada,
+                    turmaId = turmaId,
+                    dadosAnteriores =
+                            documentoAtual.data
+                                ?: emptyMap(),
+                    dadosNovos = mapOf(
+                        "encontro" to encontro,
+                        "status" to status.name
+                    )
+                )
+
+                lote.commit()
+                    .addOnSuccessListener {
+                        onSuccess()
+                    }
+                    .addOnFailureListener(onError)
             }
             .addOnFailureListener(onError)
     }
@@ -1667,9 +1746,33 @@ object FirebaseRepository {
             "dataPagamento" to FieldValue.serverTimestamp()
         )
 
-        db.collection(COLECAO_FINANCEIRO)
-            .document(pagamentoId)
-            .set(dadosPagamento)
+        val referenciaPagamento =
+            db.collection(COLECAO_FINANCEIRO)
+                .document(pagamentoId)
+
+        val lote = db.batch()
+
+        lote.set(
+            referenciaPagamento,
+            dadosPagamento
+        )
+
+        AuditoriaRepository.adicionarAoLote(
+            lote = lote,
+            tipo = TipoEventoAuditoria.PAGAMENTO_REGISTRADO,
+            entidade = EntidadeAuditoria.FINANCEIRO,
+            documentoOrigemId = pagamentoId,
+            alunoId = matriculaTratada,
+            turmaId = turmaId,
+            dadosNovos = mapOf(
+                "parcela" to parcela,
+                "status" to StatusPagamento.PAGO.name,
+                "recebidoPor" to responsavelTratado
+            ),
+            responsavelInformado = responsavelTratado
+        )
+
+        lote.commit()
             .addOnSuccessListener {
                 onSuccess()
             }
@@ -1841,6 +1944,43 @@ object FirebaseRepository {
                             )
                         )
 
+                        val tipoAuditoria =
+                            if (
+                                novoStatus ==
+                                StatusPagamento.REEMBOLSADO
+                            ) {
+                                TipoEventoAuditoria
+                                    .PAGAMENTO_REEMBOLSADO
+                            } else {
+                                TipoEventoAuditoria
+                                    .PAGAMENTO_ESTORNADO
+                            }
+
+                        AuditoriaRepository.adicionarAoLote(
+                            lote = lote,
+                            tipo = tipoAuditoria,
+                            entidade = EntidadeAuditoria.FINANCEIRO,
+                            documentoOrigemId = pagamentoId,
+                            alunoId = matriculaTratada,
+                            turmaId = turmaId,
+                            dadosAnteriores =
+                                    pagamentoDocumento.data
+                                        ?: emptyMap(),
+                            dadosNovos = mapOf(
+                                "parcela" to parcela,
+                                "status" to novoStatus.name,
+                                "motivo" to motivoTratado,
+                                "responsavel" to
+                                        responsavelTratado,
+                                "nomeAluno" to
+                                        usuarioDocumento
+                                            .getString("nome")
+                                            .orEmpty()
+                            ),
+                            responsavelInformado =
+                                    responsavelTratado
+                        )
+
                         lote.commit()
                             .addOnSuccessListener { onSuccess() }
                             .addOnFailureListener(onError)
@@ -1896,52 +2036,147 @@ object FirebaseRepository {
                     }
                     .orEmpty()
 
-                val configuracoes =
-                    AtalhosIniciaisPadrao.lista().map { padrao ->
-                        val documento =
-                            documentosPorId[padrao.id]
+                val links = listOf(
+                    AtalhosIniciaisPadrao.biblia(),
+                    AtalhosIniciaisPadrao.catecismo()
+                ).map { padrao ->
+                    val documento =
+                        documentosPorId[padrao.id]
 
-                        if (documento == null) {
-                            padrao
-                        } else {
-                            padrao.copy(
-                                titulo = documento
-                                    .getString("titulo")
-                                    .orEmpty()
-                                    .trim()
-                                    .ifBlank {
-                                        padrao.titulo
-                                    },
-                                descricao = documento
-                                    .getString("descricao")
-                                    .orEmpty()
-                                    .trim()
-                                    .ifBlank {
-                                        padrao.descricao
-                                    },
-                                url = documento
-                                    .getString("url")
-                                    .orEmpty()
-                                    .trim()
-                                    .ifBlank {
-                                        padrao.url
-                                    },
-                                iconeCodigo = documento
-                                    .getString("iconeCodigo")
-                                    .orEmpty()
-                                    .trim()
-                                    .uppercase(Locale.ROOT)
-                                    .takeIf {
-                                        it in
-                                                IconesAtalhoInicial
-                                                    .codigosPermitidos
-                                    }
-                                    ?: padrao.iconeCodigo
-                            )
-                        }
+                    if (documento == null) {
+                        padrao
+                    } else {
+                        padrao.copy(
+                            titulo = documento
+                                .getString("titulo")
+                                .orEmpty()
+                                .trim()
+                                .ifBlank {
+                                    padrao.titulo
+                                },
+                            descricao = documento
+                                .getString("descricao")
+                                .orEmpty()
+                                .trim()
+                                .ifBlank {
+                                    padrao.descricao
+                                },
+                            url = documento
+                                .getString("url")
+                                .orEmpty()
+                                .trim()
+                                .ifBlank {
+                                    padrao.url
+                                },
+                            iconeCodigo = documento
+                                .getString("iconeCodigo")
+                                .orEmpty()
+                                .trim()
+                                .uppercase(Locale.ROOT)
+                                .takeIf {
+                                    it in
+                                            IconesAtalhoInicial
+                                                .codigosPermitidos
+                                }
+                                ?: padrao.iconeCodigo
+                        )
+                    }
+                }
+
+                val ajudaPadrao =
+                    AtalhosIniciaisPadrao.ajuda()
+
+                val documentoBaseAjuda =
+                    documentosPorId[
+                        AtalhosIniciaisPadrao.ID_BIBLIA
+                    ]
+
+                val ajuda = if (documentoBaseAjuda == null) {
+                    ajudaPadrao
+                } else {
+                    ajudaPadrao.copy(
+                        titulo = documentoBaseAjuda
+                            .getString("ajudaTitulo")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank {
+                                ajudaPadrao.titulo
+                            },
+                        descricao = documentoBaseAjuda
+                            .getString("ajudaDescricao")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank {
+                                ajudaPadrao.descricao
+                            },
+                        url = documentoBaseAjuda
+                            .getString("ajudaMensagem")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank {
+                                ajudaPadrao.url
+                            },
+                        iconeCodigo = documentoBaseAjuda
+                            .getString("ajudaIconeCodigo")
+                            .orEmpty()
+                            .trim()
+                            .uppercase(Locale.ROOT)
+                            .takeIf {
+                                it in
+                                        IconesAtalhoInicial
+                                            .codigosPermitidos
+                            }
+                            ?: ajudaPadrao.iconeCodigo
+                    )
+                }
+
+                fun carregarConteudoAuxiliar(
+                    padrao: AtalhoInicialConfiguracao,
+                    prefixo: String
+                ): AtalhoInicialConfiguracao {
+                    if (documentoBaseAjuda == null) {
+                        return padrao
                     }
 
-                onUpdate(configuracoes)
+                    return padrao.copy(
+                        titulo = documentoBaseAjuda
+                            .getString("${prefixo}Titulo")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank { padrao.titulo },
+                        descricao = documentoBaseAjuda
+                            .getString("${prefixo}Descricao")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank { padrao.descricao },
+                        url = documentoBaseAjuda
+                            .getString("${prefixo}Mensagem")
+                            .orEmpty()
+                            .trim()
+                            .ifBlank { padrao.url },
+                        iconeCodigo = documentoBaseAjuda
+                            .getString("${prefixo}IconeCodigo")
+                            .orEmpty()
+                            .trim()
+                            .uppercase(Locale.ROOT)
+                            .takeIf {
+                                it in IconesAtalhoInicial.codigosPermitidos
+                            }
+                            ?: padrao.iconeCodigo
+                    )
+                }
+
+                val sobre = carregarConteudoAuxiliar(
+                    AtalhosIniciaisPadrao.sobre(),
+                    "sobre"
+                )
+
+                val contatos = carregarConteudoAuxiliar(
+                    AtalhosIniciaisPadrao.contatos(),
+                    "contatos"
+                )
+
+                onUpdate(links + listOf(ajuda, sobre, contatos))
             }
     }
 
@@ -1954,6 +2189,24 @@ object FirebaseRepository {
         val idTratado = configuracao.id
             .trim()
             .uppercase(Locale.ROOT)
+
+        val prefixoConteudo = when (idTratado) {
+            AtalhosIniciaisPadrao.ID_AJUDA -> "ajuda"
+            AtalhosIniciaisPadrao.ID_SOBRE -> "sobre"
+            AtalhosIniciaisPadrao.ID_CONTATOS -> "contatos"
+            else -> null
+        }
+
+        if (prefixoConteudo != null) {
+            salvarConteudoInstitucional(
+                configuracao = configuracao,
+                prefixo = prefixoConteudo,
+                responsavel = responsavel,
+                onSuccess = onSuccess,
+                onError = onError
+            )
+            return
+        }
 
         val tituloTratado = configuracao.titulo
             .trim()
@@ -1969,7 +2222,8 @@ object FirebaseRepository {
             .uppercase(Locale.ROOT)
 
         if (
-            AtalhosIniciaisPadrao.porId(idTratado) == null
+            idTratado != AtalhosIniciaisPadrao.ID_BIBLIA &&
+            idTratado != AtalhosIniciaisPadrao.ID_CATECISMO
         ) {
             onError(
                 IllegalArgumentException(
@@ -2056,6 +2310,148 @@ object FirebaseRepository {
             )
             .addOnSuccessListener {
                 onSuccess()
+            }
+            .addOnFailureListener(onError)
+    }
+
+    private fun salvarConteudoInstitucional(
+        configuracao: AtalhoInicialConfiguracao,
+        prefixo: String,
+        responsavel: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        val titulo = configuracao.titulo.trim()
+        val descricao = configuracao.descricao.trim()
+        val mensagem = configuracao.url.trim()
+        val icone = configuracao.iconeCodigo
+            .trim()
+            .uppercase(Locale.ROOT)
+
+        if (titulo.isBlank() || titulo.length > 18) {
+            onError(
+                IllegalArgumentException(
+                    "O título deve ter entre 1 e 18 caracteres."
+                )
+            )
+            return
+        }
+
+        if (
+            descricao.isBlank() ||
+            descricao.length > 36
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "O texto pequeno deve ter entre 1 e 36 caracteres."
+                )
+            )
+            return
+        }
+
+        if (
+            mensagem.isBlank() ||
+            mensagem.length > 400
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "A mensagem deve ter entre 1 e 400 caracteres."
+                )
+            )
+            return
+        }
+
+        if (
+            icone !in
+            IconesAtalhoInicial.codigosPermitidos
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "O ícone selecionado é inválido."
+                )
+            )
+            return
+        }
+
+        val referenciaBiblia =
+            db.collection(COLECAO_ATALHOS_INICIO)
+                .document(
+                    AtalhosIniciaisPadrao.ID_BIBLIA
+                )
+
+        referenciaBiblia.get()
+            .addOnSuccessListener { documento ->
+                val bibliaPadrao =
+                    AtalhosIniciaisPadrao.biblia()
+
+                fun stringAtual(
+                    campo: String,
+                    padrao: String
+                ): String {
+                    return documento
+                        .getString(campo)
+                        .orEmpty()
+                        .trim()
+                        .ifBlank { padrao }
+                }
+
+                val iconeBibliaAtual = documento
+                    .getString("iconeCodigo")
+                    .orEmpty()
+                    .trim()
+                    .uppercase(Locale.ROOT)
+                    .takeIf {
+                        it in
+                                IconesAtalhoInicial
+                                    .codigosPermitidos
+                    }
+                    ?: bibliaPadrao.iconeCodigo
+
+                val dados = mapOf(
+                    "id" to
+                            AtalhosIniciaisPadrao.ID_BIBLIA,
+                    "titulo" to stringAtual(
+                        "titulo",
+                        bibliaPadrao.titulo
+                    ),
+                    "descricao" to stringAtual(
+                        "descricao",
+                        bibliaPadrao.descricao
+                    ),
+                    "url" to stringAtual(
+                        "url",
+                        bibliaPadrao.url
+                    ),
+                    "iconeCodigo" to iconeBibliaAtual,
+                    "${prefixo}Titulo" to titulo,
+                    "${prefixo}Descricao" to descricao,
+                    "${prefixo}Mensagem" to mensagem,
+                    "${prefixo}IconeCodigo" to icone,
+                    "${prefixo}AtualizadoPor" to responsavel
+                        .trim()
+                        .ifBlank {
+                            "Administrador"
+                        },
+                    "${prefixo}DataAtualizacao" to
+                            FieldValue.serverTimestamp(),
+                    "atualizadoPor" to responsavel
+                        .trim()
+                        .ifBlank {
+                            "Administrador"
+                        },
+                    "dataAtualizacao" to
+                            FieldValue.serverTimestamp()
+                )
+
+                referenciaBiblia
+                    .set(
+                        dados,
+                        SetOptions.merge()
+                    )
+                    .addOnSuccessListener {
+                        onSuccess()
+                    }
+                    .addOnFailureListener(onError)
             }
             .addOnFailureListener(onError)
     }

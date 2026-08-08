@@ -8,6 +8,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material.icons.outlined.Phone
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Favorite
 import androidx.compose.material.icons.outlined.Lightbulb
 import androidx.compose.material.icons.outlined.Link
@@ -21,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -42,6 +47,9 @@ data class OpcaoIconeAtalho(
 object AtalhosIniciaisPadrao {
     const val ID_BIBLIA = "BIBLIA"
     const val ID_CATECISMO = "CATECISMO"
+    const val ID_AJUDA = "AJUDA"
+    const val ID_SOBRE = "SOBRE"
+    const val ID_CONTATOS = "CONTATOS"
 
     fun biblia(): AtalhoInicialConfiguracao {
         return AtalhoInicialConfiguracao(
@@ -63,10 +71,47 @@ object AtalhosIniciaisPadrao {
         )
     }
 
+    /*
+     * Para a configuração AJUDA, o campo "url" é reutilizado
+     * internamente como a mensagem exibida no popup.
+     */
+    fun ajuda(): AtalhoInicialConfiguracao {
+        return AtalhoInicialConfiguracao(
+            id = ID_AJUDA,
+            titulo = "Em caso de dúvidas",
+            descricao = "Contate a coordenação da Crisma",
+            url = "Em caso de dúvidas sobre a Crisma, entre em contato com a coordenação para receber orientação.",
+            iconeCodigo = "HELP"
+        )
+    }
+
+    fun sobre(): AtalhoInicialConfiguracao {
+        return AtalhoInicialConfiguracao(
+            id = ID_SOBRE,
+            titulo = "Sobre o App",
+            descricao = "Conheça o CrismAPP",
+            url = "O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\nDesenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\nGestão de Requisitos:\nVictor Lima",
+            iconeCodigo = "INFO"
+        )
+    }
+
+    fun contatos(): AtalhoInicialConfiguracao {
+        return AtalhoInicialConfiguracao(
+            id = ID_CONTATOS,
+            titulo = "Contatos",
+            descricao = "Paróquia e secretaria",
+            url = "Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\nSecretaria e WhatsApp:\n(81) 9 8593-9076\n\nHorário de Atendimento:\nTerça a Sábado: 08h às 12h",
+            iconeCodigo = "PHONE"
+        )
+    }
+
     fun lista(): List<AtalhoInicialConfiguracao> {
         return listOf(
             biblia(),
-            catecismo()
+            catecismo(),
+            ajuda(),
+            sobre(),
+            contatos()
         )
     }
 
@@ -74,6 +119,9 @@ object AtalhosIniciaisPadrao {
         return when (id.trim().uppercase()) {
             ID_BIBLIA -> biblia()
             ID_CATECISMO -> catecismo()
+            ID_AJUDA -> ajuda()
+            ID_SOBRE -> sobre()
+            ID_CONTATOS -> contatos()
             else -> null
         }
     }
@@ -111,6 +159,22 @@ object IconesAtalhoInicial {
             nome = "Luz",
             icone = Icons.Outlined.Lightbulb
         )
+,
+        OpcaoIconeAtalho(
+            codigo = "HELP",
+            nome = "Ajuda",
+            icone = Icons.Outlined.HelpOutline
+        ),
+        OpcaoIconeAtalho(
+            codigo = "PHONE",
+            nome = "Telefone",
+            icone = Icons.Outlined.Phone
+        ),
+        OpcaoIconeAtalho(
+            codigo = "INFO",
+            nome = "Informação",
+            icone = Icons.Outlined.Info
+        )
     )
 
     val codigosPermitidos: Set<String> =
@@ -127,6 +191,108 @@ fun iconeAtalhoInicial(codigo: String): ImageVector {
         }
         ?.icone
         ?: Icons.Outlined.Link
+}
+
+@Composable
+fun ConteudoInstitucionalDialog(
+    configuracao: AtalhoInicialConfiguracao,
+    botaoTexto: String = "Entendido",
+    onDismiss: () -> Unit
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            color = Color(0xFFFAFAFA),
+            shape = RoundedCornerShape(18.dp),
+            tonalElevation = 0.dp,
+            shadowElevation = 7.dp
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .background(
+                                color = Color(0xFFFF0000).copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(12.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = iconeAtalhoInicial(configuracao.iconeCodigo),
+                            contentDescription = null,
+                            tint = Color(0xFFFF0000),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(11.dp))
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = configuracao.titulo,
+                            color = Color.Black,
+                            fontSize = 17.sp,
+                            lineHeight = 18.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = configuracao.descricao,
+                            color = Color.Gray,
+                            fontSize = 11.sp,
+                            lineHeight = 13.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = Color(0xFFECECEC), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFECECEC)),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text(
+                        text = configuracao.url,
+                        modifier = Modifier.padding(14.dp),
+                        color = Color(0xFF3F3F3F),
+                        fontSize = 13.sp,
+                        lineHeight = 18.sp
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFFFF0000)
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = botaoTexto,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -151,6 +317,17 @@ fun EditorAtalhosIniciaisDialog(
         ?: AtalhosIniciaisPadrao.porId(idSelecionado)
         ?: AtalhosIniciaisPadrao.biblia()
 
+    val editandoConteudo =
+        idSelecionado in setOf(
+            AtalhosIniciaisPadrao.ID_AJUDA,
+            AtalhosIniciaisPadrao.ID_SOBRE,
+            AtalhosIniciaisPadrao.ID_CONTATOS
+        )
+
+    val limiteTitulo = 18
+    val limiteDescricao = if (editandoConteudo) 36 else 24
+    val limiteMensagem = 400
+
     var titulo by remember(
         idSelecionado,
         configuracaoAtual
@@ -165,7 +342,7 @@ fun EditorAtalhosIniciaisDialog(
         mutableStateOf(configuracaoAtual.descricao)
     }
 
-    var url by remember(
+    var urlOuMensagem by remember(
         idSelecionado,
         configuracaoAtual
     ) {
@@ -184,7 +361,7 @@ fun EditorAtalhosIniciaisDialog(
                 !salvando &&
                 titulo.trim().isNotBlank() &&
                 descricao.trim().isNotBlank() &&
-                url.trim().isNotBlank()
+                urlOuMensagem.trim().isNotBlank()
 
     Dialog(
         onDismissRequest = {
@@ -196,11 +373,11 @@ fun EditorAtalhosIniciaisDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .heightIn(max = 650.dp),
+                .heightIn(max = 690.dp),
             color = Color(0xFFFAFAFA),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             tonalElevation = 0.dp,
-            shadowElevation = 6.dp
+            shadowElevation = 7.dp
         ) {
             Column(
                 modifier = Modifier
@@ -212,12 +389,23 @@ fun EditorAtalhosIniciaisDialog(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Outlined.Link,
-                        contentDescription = null,
-                        tint = Color(0xFFFF0000),
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                color = Color(0xFFFF0000)
+                                    .copy(alpha = 0.08f),
+                                shape = RoundedCornerShape(11.dp)
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Outlined.Edit,
+                            contentDescription = null,
+                            tint = Color(0xFFFF0000),
+                            modifier = Modifier.size(21.dp)
+                        )
+                    }
 
                     Spacer(modifier = Modifier.width(10.dp))
 
@@ -225,32 +413,62 @@ fun EditorAtalhosIniciaisDialog(
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
-                            text = "Editar acessos rápidos",
+                            text = "Editar tela inicial",
                             color = Color.Black,
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold
                         )
 
                         Text(
-                            text = "Altere os botões da primeira tela",
+                            text = "Links rápidos e mensagem de ajuda",
                             color = Color.Gray,
                             fontSize = 11.sp
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                HorizontalDivider(
+                    color = Color(0xFFECECEC),
+                    thickness = 1.dp
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     listOf(
-                        AtalhosIniciaisPadrao.ID_BIBLIA to "Primeiro botão",
-                        AtalhosIniciaisPadrao.ID_CATECISMO to "Terceiro botão"
-                    ).forEach { (id, rotulo) ->
-                        val selecionado =
-                            idSelecionado == id
+                        Triple(
+                            AtalhosIniciaisPadrao.ID_BIBLIA,
+                            "Bíblia",
+                            Icons.Outlined.MenuBook
+                        ),
+                        Triple(
+                            AtalhosIniciaisPadrao.ID_CATECISMO,
+                            "Catecismo",
+                            Icons.Outlined.School
+                        ),
+                        Triple(
+                            AtalhosIniciaisPadrao.ID_AJUDA,
+                            "Ajuda",
+                            Icons.Outlined.HelpOutline
+                        )
+,
+                        Triple(
+                            AtalhosIniciaisPadrao.ID_SOBRE,
+                            "Sobre",
+                            Icons.Outlined.Info
+                        ),
+                        Triple(
+                            AtalhosIniciaisPadrao.ID_CONTATOS,
+                            "Contatos",
+                            Icons.Outlined.Phone
+                        )
+                    ).forEach { (id, rotulo, icone) ->
+                        val selecionado = idSelecionado == id
 
                         FilterChip(
                             selected = selecionado,
@@ -262,83 +480,141 @@ fun EditorAtalhosIniciaisDialog(
                             label = {
                                 Text(
                                     text = rotulo,
-                                    fontSize = 11.sp
+                                    fontSize = 10.sp,
+                                    maxLines = 1
                                 )
                             },
                             leadingIcon = {
                                 Icon(
-                                    imageVector = if (
-                                        id ==
-                                        AtalhosIniciaisPadrao.ID_BIBLIA
-                                    ) {
-                                        Icons.Outlined.MenuBook
-                                    } else {
-                                        Icons.Outlined.School
-                                    },
+                                    imageVector = icone,
                                     contentDescription = null,
-                                    modifier = Modifier.size(17.dp)
+                                    modifier = Modifier.size(15.dp)
                                 )
                             },
                             colors = FilterChipDefaults.filterChipColors(
-                                containerColor = Color.White,
-                                labelColor = Color(0xFF555555),
-                                iconColor = Color(0xFFFF0000),
                                 selectedContainerColor =
-                                Color(0xFFFFF3F3),
+                                    Color(0xFFFF0000)
+                                        .copy(alpha = 0.10f),
                                 selectedLabelColor =
-                                Color(0xFFB00000),
+                                    Color(0xFFB00000),
                                 selectedLeadingIconColor =
-                                Color(0xFFFF0000),
-                                disabledContainerColor =
-                                Color(0xFFF3F3F3),
-                                disabledLabelColor =
-                                Color(0xFF999999),
-                                disabledLeadingIconColor =
-                                Color(0xFF999999)
+                                    Color(0xFFFF0000)
                             ),
                             border = FilterChipDefaults.filterChipBorder(
                                 enabled = true,
                                 selected = selecionado,
                                 borderColor = Color(0xFFE5E5E5),
                                 selectedBorderColor =
-                                Color(0xFFFF0000)
-                                    .copy(alpha = 0.35f)
+                                    Color(0xFFFF0000)
+                                        .copy(alpha = 0.35f)
                             ),
                             modifier = Modifier.weight(1f)
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
+
+                if (editandoConteudo) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color(0xFFF7F7F7)
+                        ),
+                        border = BorderStroke(
+                            1.dp,
+                            Color(0xFFEAEAEA)
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 0.dp
+                        ),
+                        shape = RoundedCornerShape(11.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(11.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .background(
+                                        color = Color(0xFFFF0000)
+                                            .copy(alpha = 0.08f),
+                                        shape = RoundedCornerShape(10.dp)
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector =
+                                        iconeAtalhoInicial(iconeCodigo),
+                                    contentDescription = null,
+                                    tint = Color(0xFFFF0000),
+                                    modifier = Modifier.size(19.dp)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.width(9.dp))
+
+                            Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    text = titulo.ifBlank {
+                                        "Título da ajuda"
+                                    },
+                                    color = Color.Black,
+                                    fontSize = 14.sp,
+                                    lineHeight = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                Text(
+                                    text = descricao.ifBlank {
+                                        "Texto pequeno da primeira tela"
+                                    },
+                                    color = Color.Gray,
+                                    fontSize = 10.sp,
+                                    lineHeight = 11.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
 
                 OutlinedTextField(
                     value = titulo,
                     onValueChange = {
-                        titulo = it.take(18)
+                        titulo = it.take(limiteTitulo)
                     },
                     enabled = !carregando && !salvando,
                     label = {
-                        Text("Nome no botão")
+                        Text(
+                            if (editandoConteudo) {
+                                "Título da ajuda"
+                            } else {
+                                "Nome no botão"
+                            }
+                        )
                     },
                     supportingText = {
-                        Text("${titulo.length}/18")
+                        Text("${titulo.length}/$limiteTitulo")
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        disabledContainerColor = Color(0xFFF7F7F7),
+                        focusedTextColor = Color(0xFF4F4F4F),
+                        unfocusedTextColor = Color(0xFF4F4F4F),
                         focusedBorderColor = Color(0xFFFF0000),
-                        unfocusedBorderColor = Color(0xFFD8D8D8),
-                        disabledBorderColor = Color(0xFFE5E5E5),
                         focusedLabelColor = Color(0xFF555555),
-                        unfocusedLabelColor = Color(0xFF707070),
-                        disabledLabelColor = Color(0xFF999999),
-                        focusedTextColor = Color(0xFF333333),
-                        unfocusedTextColor = Color(0xFF333333),
-                        disabledTextColor = Color(0xFF888888),
                         cursorColor = Color(0xFFFF0000)
                     )
                 )
@@ -348,73 +624,90 @@ fun EditorAtalhosIniciaisDialog(
                 OutlinedTextField(
                     value = descricao,
                     onValueChange = {
-                        descricao = it.take(24)
+                        descricao = it.take(limiteDescricao)
                     },
                     enabled = !carregando && !salvando,
                     label = {
                         Text("Texto pequeno abaixo")
                     },
                     supportingText = {
-                        Text("${descricao.length}/24")
+                        Text("${descricao.length}/$limiteDescricao")
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(10.dp),
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        disabledContainerColor = Color(0xFFF7F7F7),
+                        focusedTextColor = Color(0xFF4F4F4F),
+                        unfocusedTextColor = Color(0xFF4F4F4F),
                         focusedBorderColor = Color(0xFFFF0000),
-                        unfocusedBorderColor = Color(0xFFD8D8D8),
-                        disabledBorderColor = Color(0xFFE5E5E5),
                         focusedLabelColor = Color(0xFF555555),
-                        unfocusedLabelColor = Color(0xFF707070),
-                        disabledLabelColor = Color(0xFF999999),
-                        focusedTextColor = Color(0xFF333333),
-                        unfocusedTextColor = Color(0xFF333333),
-                        disabledTextColor = Color(0xFF888888),
                         cursorColor = Color(0xFFFF0000)
                     )
                 )
 
                 Spacer(modifier = Modifier.height(8.dp))
 
-                OutlinedTextField(
-                    value = url,
-                    onValueChange = {
-                        url = it.trimStart()
-                    },
-                    enabled = !carregando && !salvando,
-                    label = {
-                        Text("Link completo")
-                    },
-                    placeholder = {
-                        Text("https://...")
-                    },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Color.White,
-                        unfocusedContainerColor = Color.White,
-                        disabledContainerColor = Color(0xFFF7F7F7),
-                        focusedBorderColor = Color(0xFFFF0000),
-                        unfocusedBorderColor = Color(0xFFD8D8D8),
-                        disabledBorderColor = Color(0xFFE5E5E5),
-                        focusedLabelColor = Color(0xFF555555),
-                        unfocusedLabelColor = Color(0xFF707070),
-                        disabledLabelColor = Color(0xFF999999),
-                        focusedTextColor = Color(0xFF333333),
-                        unfocusedTextColor = Color(0xFF333333),
-                        disabledTextColor = Color(0xFF888888),
-                        cursorColor = Color(0xFFFF0000)
+                if (editandoConteudo) {
+                    OutlinedTextField(
+                        value = urlOuMensagem,
+                        onValueChange = {
+                            urlOuMensagem = it.take(limiteMensagem)
+                        },
+                        enabled = !carregando && !salvando,
+                        label = {
+                            Text("Mensagem do popup")
+                        },
+                        supportingText = {
+                            Text(
+                                "${urlOuMensagem.length}/$limiteMensagem"
+                            )
+                        },
+                        minLines = 3,
+                        maxLines = 6,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF4F4F4F),
+                            unfocusedTextColor = Color(0xFF4F4F4F),
+                            focusedBorderColor = Color(0xFFFF0000),
+                            focusedLabelColor = Color(0xFF555555),
+                            cursorColor = Color(0xFFFF0000)
+                        )
                     )
-                )
+                } else {
+                    OutlinedTextField(
+                        value = urlOuMensagem,
+                        onValueChange = {
+                            urlOuMensagem = it.trimStart()
+                        },
+                        enabled = !carregando && !salvando,
+                        label = {
+                            Text("Link completo")
+                        },
+                        placeholder = {
+                            Text("https://...")
+                        },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = Color(0xFF4F4F4F),
+                            unfocusedTextColor = Color(0xFF4F4F4F),
+                            focusedBorderColor = Color(0xFFFF0000),
+                            focusedLabelColor = Color(0xFF555555),
+                            cursorColor = Color(0xFFFF0000)
+                        )
+                    )
+                }
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = "Ícone do botão",
+                    text = if (editandoConteudo) {
+                        "Ícone do conteúdo"
+                    } else {
+                        "Ícone do botão"
+                    },
                     color = Color.Black,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold
@@ -428,7 +721,7 @@ fun EditorAtalhosIniciaisDialog(
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement =
-                            Arrangement.spacedBy(7.dp)
+                                Arrangement.spacedBy(7.dp)
                         ) {
                             linha.forEach { opcao ->
                                 val selecionado =
@@ -442,57 +735,56 @@ fun EditorAtalhosIniciaisDialog(
                                         }
                                     },
                                     enabled =
-                                    !carregando && !salvando,
+                                        !carregando && !salvando,
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(62.dp),
                                     colors =
-                                    CardDefaults.cardColors(
-                                        containerColor =
-                                        if (selecionado) {
-                                            Color(0xFFFFF3F3)
-                                        } else {
-                                            Color.White
-                                        }
-                                    ),
+                                        CardDefaults.cardColors(
+                                            containerColor =
+                                                if (selecionado) {
+                                                    Color(0xFFFFF3F3)
+                                                } else {
+                                                    Color.White
+                                                }
+                                        ),
                                     border = BorderStroke(
                                         width =
-                                        if (selecionado) {
-                                            1.5.dp
-                                        } else {
-                                            1.dp
-                                        },
+                                            if (selecionado) {
+                                                1.5.dp
+                                            } else {
+                                                1.dp
+                                            },
                                         color =
-                                        if (selecionado) {
-                                            Color(0xFFFF0000)
-                                                .copy(alpha = 0.55f)
-                                        } else {
-                                            Color(0xFFECECEC)
-                                        }
+                                            if (selecionado) {
+                                                Color(0xFFFF0000)
+                                                    .copy(alpha = 0.55f)
+                                            } else {
+                                                Color(0xFFECECEC)
+                                            }
                                     ),
                                     shape = RoundedCornerShape(10.dp)
                                 ) {
                                     Column(
                                         modifier =
-                                        Modifier.fillMaxSize(),
+                                            Modifier.fillMaxSize(),
                                         horizontalAlignment =
-                                        Alignment.CenterHorizontally,
+                                            Alignment.CenterHorizontally,
                                         verticalArrangement =
-                                        Arrangement.Center
+                                            Arrangement.Center
                                     ) {
                                         Icon(
-                                            imageVector =
-                                            opcao.icone,
+                                            imageVector = opcao.icone,
                                             contentDescription =
-                                            opcao.nome,
+                                                opcao.nome,
                                             tint = Color(0xFFFF0000),
                                             modifier =
-                                            Modifier.size(20.dp)
+                                                Modifier.size(20.dp)
                                         )
 
                                         Spacer(
                                             modifier =
-                                            Modifier.height(4.dp)
+                                                Modifier.height(4.dp)
                                         )
 
                                         Text(
@@ -531,10 +823,6 @@ fun EditorAtalhosIniciaisDialog(
                         border = BorderStroke(
                             1.dp,
                             Color(0xFFE5E5E5)
-                        ),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = Color(0xFF555555),
-                            disabledContentColor = Color(0xFFAAAAAA)
                         )
                     ) {
                         Text(
@@ -550,11 +838,9 @@ fun EditorAtalhosIniciaisDialog(
                                 AtalhoInicialConfiguracao(
                                     id = idSelecionado,
                                     titulo = titulo.trim(),
-                                    descricao =
-                                    descricao.trim(),
-                                    url = url.trim(),
-                                    iconeCodigo =
-                                    iconeCodigo
+                                    descricao = descricao.trim(),
+                                    url = urlOuMensagem.trim(),
+                                    iconeCodigo = iconeCodigo
                                 )
                             )
                         },
@@ -565,7 +851,7 @@ fun EditorAtalhosIniciaisDialog(
                         colors = ButtonDefaults.buttonColors(
                             containerColor = Color(0xFFFF0000),
                             disabledContainerColor =
-                            Color(0xFFE2E2E2)
+                                Color(0xFFE2E2E2)
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {

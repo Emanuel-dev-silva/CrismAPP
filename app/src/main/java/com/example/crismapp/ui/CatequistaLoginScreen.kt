@@ -120,11 +120,7 @@ fun CatequistaLoginScreen(navController: NavController) {
         modifier = Modifier.fillMaxSize()
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(scrollState)
-                .imePadding()
-                .navigationBarsPadding()
+            modifier = Modifier.fillMaxSize()
         ) {
 
             // =====================================================
@@ -134,7 +130,7 @@ fun CatequistaLoginScreen(navController: NavController) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(screenHeight * 0.617f)
+                    .weight(0.65f)
                     .background(Crisma_Primary)
                     .padding(
                         horizontal = 16.dp,
@@ -236,7 +232,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                             navController.navigate(
                                 "crismandoLoginScreen"
                             ) {
-                                popUpTo("loginCatequista") {
+                                popUpTo("LoginCatequista") {
                                     inclusive = true
                                 }
 
@@ -298,7 +294,7 @@ fun CatequistaLoginScreen(navController: NavController) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = screenHeight * 0.35f)
+                    .weight(0.35f)
                     .offset(y = -(screenHeight * 0.04f))
                     .background(Color.White),
                 contentAlignment = Alignment.TopCenter
@@ -307,6 +303,9 @@ fun CatequistaLoginScreen(navController: NavController) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .imePadding()
+                            .navigationBarsPadding()
                             .padding(
                                 start = 28.dp,
                                 end = 28.dp,
@@ -560,7 +559,7 @@ fun CatequistaLoginScreen(navController: NavController) {
                                     navController.navigate(
                                         "userSelection"
                                     ) {
-                                        popUpTo("loginCatequista") {
+                                        popUpTo("LoginCatequista") {
                                             inclusive = true
                                         }
                                     }

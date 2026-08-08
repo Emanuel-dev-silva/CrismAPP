@@ -215,6 +215,18 @@ fun TurmaAdultaScreen(navController: NavController) {
             AtalhosIniciaisPadrao.lista()
         )
     }
+
+    val sobreInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_SOBRE
+        }
+        ?: AtalhosIniciaisPadrao.sobre()
+
+    val contatosInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_CONTATOS
+        }
+        ?: AtalhosIniciaisPadrao.contatos()
     var carregandoAtalhos by remember {
         mutableStateOf(true)
     }
@@ -624,8 +636,14 @@ fun TurmaAdultaScreen(navController: NavController) {
             Box(modifier = Modifier.fillMaxWidth().weight(0.65f).background(Crisma_Primary).padding(horizontal = 16.dp, vertical = 24.dp)) {
                 Column(modifier = Modifier.fillMaxSize()) {
                     Row(modifier = Modifier.fillMaxWidth().padding(top = 20.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        UserIconWithLabel(Icons.Outlined.Info, "Sobre o App") { showSobreNosDialog = true }
-                        UserIconWithLabel(Icons.Outlined.Phone, "Contatos") { showContatosDialog = true }
+                        UserIconWithLabel(
+                            iconeAtalhoInicial(sobreInicial.iconeCodigo),
+                            sobreInicial.titulo
+                        ) { showSobreNosDialog = true }
+                        UserIconWithLabel(
+                            iconeAtalhoInicial(contatosInicial.iconeCodigo),
+                            contatosInicial.titulo
+                        ) { showContatosDialog = true }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -887,7 +905,7 @@ fun TurmaAdultaScreen(navController: NavController) {
 
                         Toast.makeText(
                             context,
-                            "Link atualizado na primeira tela.",
+                            "Tela inicial atualizada.",
                             Toast.LENGTH_SHORT
                         ).show()
                     },
@@ -897,7 +915,7 @@ fun TurmaAdultaScreen(navController: NavController) {
                         Toast.makeText(
                             context,
                             erro.message
-                                ?: "Não foi possível salvar o link.",
+                                ?: "Não foi possível atualizar a tela inicial.",
                             Toast.LENGTH_LONG
                         ).show()
                     }
@@ -3317,59 +3335,18 @@ fun TurmaAdultaScreen(navController: NavController) {
     }
 
     if (showSobreNosDialog) {
-        AlertDialog(
-            onDismissRequest = { showSobreNosDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showSobreNosDialog = false }) {
-                    Text("Entendido", color = Crisma_Primary)
-                }
-            },
-            title = {
-                Text(
-                    text = "Sobre o CrismAPP",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "O CrismAPP foi idealizado para modernizar e fortalecer " +
-                            "a comunicação na jornada espiritual da nossa Paróquia.\n\n" +
-                            ". Desenvolvimento:\n" +
-                            "Emanuel Barbosa\n" +
-                            "(github.com/Emanuel-dev-silva)\n\n" +
-                            ". Gestão de Requisitos:\n" +
-                            "Victor Lima"
-                )
-            }
+        ConteudoInstitucionalDialog(
+            configuracao = sobreInicial,
+            botaoTexto = "Entendido",
+            onDismiss = { showSobreNosDialog = false }
         )
     }
 
     if (showContatosDialog) {
-        AlertDialog(
-            onDismissRequest = { showContatosDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showContatosDialog = false }) {
-                    Text("Fechar", color = Crisma_Primary)
-                }
-            },
-            title = {
-                Text(
-                    text = "Contatos",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = ". Paróquia Santo Antônio\n" +
-                                "Tiúma, São Lourenço da Mata - PE\n\n" +
-                                ". Secretaria e WhatsApp:\n" +
-                                "(81) 9 8593-9076\n\n" +
-                                ". Horário de Atendimento:\n" +
-                                "Terça a Sábado: 08h às 12h"
-                    )
-                }
-            }
+        ConteudoInstitucionalDialog(
+            configuracao = contatosInicial,
+            botaoTexto = "Fechar",
+            onDismiss = { showContatosDialog = false }
         )
     }
 

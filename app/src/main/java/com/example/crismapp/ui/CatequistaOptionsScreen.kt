@@ -224,6 +224,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
     val view = LocalView.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
+    val screenWidth = configuration.screenWidthDp.dp
     val db = remember { FirebaseFirestore.getInstance() }
 
     var showSobreNosDialog by remember { mutableStateOf(false) }
@@ -238,6 +239,9 @@ fun CatequistaOptionsScreen(navController: NavController) {
         mutableStateOf(false)
     }
     var showResumoTurmasDialog by remember {
+        mutableStateOf(false)
+    }
+    var showRelatorioMensalPendenteDialog by remember {
         mutableStateOf(false)
     }
     var animarImagem by remember { mutableStateOf(false) }
@@ -645,6 +649,53 @@ fun CatequistaOptionsScreen(navController: NavController) {
 
     val catequista = FirebaseAuthRepository.catequistaAtual
 
+    val referenciaMesAnterior = remember {
+        RelatorioMensalRepository.obterReferenciaMesAnterior()
+    }
+
+    LaunchedEffect(catequista?.uid) {
+        if (
+            catequista?.possuiPermissaoTotal() == true
+        ) {
+            val preferencias = context.getSharedPreferences(
+                "crismapp_relatorios",
+                android.content.Context.MODE_PRIVATE
+            )
+
+            val chaveLembrete =
+                "lembrete_${referenciaMesAnterior.chave}"
+
+            val lembreteJaExibido =
+                preferencias.getBoolean(
+                    chaveLembrete,
+                    false
+                )
+
+            if (!lembreteJaExibido) {
+                RelatorioMensalRepository
+                    .verificarRelatorioGerado(
+                        referencia = referenciaMesAnterior,
+                        onSuccess = { jaGerado ->
+                            preferencias.edit()
+                                .putBoolean(
+                                    chaveLembrete,
+                                    true
+                                )
+                                .apply()
+
+                            if (!jaGerado) {
+                                showRelatorioMensalPendenteDialog =
+                                    true
+                            }
+                        },
+                        onError = {
+                            // O erro da verificação não bloqueia o painel.
+                        }
+                    )
+            }
+        }
+    }
+
     LaunchedEffect(Unit) {
         val window = (view.context as Activity).window
 
@@ -659,7 +710,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
             FirebaseAuthRepository.restaurarSessao(
                 onSuccess = {},
                 onSemSessao = {
-                    navController.navigate("loginCatequista") {
+                    navController.navigate("LoginCatequista") {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -671,7 +722,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
                         Toast.LENGTH_SHORT
                     ).show()
 
-                    navController.navigate("loginCatequista") {
+                    navController.navigate("LoginCatequista") {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
                     }
@@ -1082,37 +1133,125 @@ fun CatequistaOptionsScreen(navController: NavController) {
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .requiredWidth(screenWidth)
+                                .height(54.dp)
+                                .background(Color.White),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(
+                            Box(
                                 modifier = Modifier
-                                    .weight(1f)
-                                    .padding(top = 12.dp)
+                                    .weight(
+                                        if (
+                                            catequista
+                                                ?.possuiPermissaoTotal() ==
+                                            true
+                                        ) {
+                                            1.35f
+                                        } else {
+                                            1f
+                                        }
+                                    )
+                                    .fillMaxHeight()
+                                    .background(
+                                        Color(0xFFE0E0E0)
+                                    )
+                                    .padding(horizontal = 10.dp),
+                                contentAlignment =
+                                Alignment.CenterStart
                             ) {
-                                Text(
-                                    text = "Visão geral da paróquia",
-                                    fontSize = 16.sp,
-                                    lineHeight = 16.sp,
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment =
+                                    Alignment.CenterVertically
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text(
+                                            text =
+                                            "Visão geral da paróquia",
+                                            fontSize = 14.sp,
+                                            lineHeight = 15.sp,
+                                            color = Color.Black,
+                                            fontWeight =
+                                            FontWeight.Bold
+                                        )
 
-                                Text(
-                                    text = "Indicadores atualizados em tempo real\n",
-                                    modifier = Modifier.offset(y = (0).dp),
-                                    fontSize = 11.sp,
-                                    lineHeight = 11.sp,
-                                    color = Color.Gray
-                                )
+                                        Text(
+                                            text =
+                                            "Indicadores em tempo real",
+                                            fontSize = 10.sp,
+                                            lineHeight = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+
+                                    if (carregandoPainel) {
+                                        CircularProgressIndicator(
+                                            modifier =
+                                            Modifier.size(16.dp),
+                                            color = Crisma_Primary,
+                                            strokeWidth = 2.dp
+                                        )
+                                    }
+                                }
                             }
 
-                            if (carregandoPainel) {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(17.dp),
-                                    color = Crisma_Primary,
-                                    strokeWidth = 2.dp
+                            if (
+                                catequista
+                                    ?.possuiPermissaoTotal() == true
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(2.dp)
+                                        .fillMaxHeight()
+                                        .background(Crisma_Gold)
                                 )
+
+                                Box(
+                                    modifier = Modifier
+                                        .weight(0.85f)
+                                        .fillMaxHeight()
+                                        .background(Color.White)
+                                        .clickable {
+                                            navController.navigate(
+                                                "relatoriosMensaisScreen"
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(
+                                        verticalAlignment =
+                                        Alignment.CenterVertically,
+                                        horizontalArrangement =
+                                        Arrangement.Center
+                                    ) {
+                                        Icon(
+                                            imageVector =
+                                            Icons.Outlined.Download,
+                                            contentDescription =
+                                            "Gerar relatório TXT",
+                                            tint = Crisma_Primary,
+                                            modifier =
+                                            Modifier.size(16.dp)
+                                        )
+
+                                        Spacer(
+                                            modifier =
+                                            Modifier.width(6.dp)
+                                        )
+
+                                        Text(
+                                            text = "Relatórios",
+                                            color = Color.Gray,
+                                            fontWeight =
+                                            FontWeight.SemiBold,
+                                            fontSize = 12.sp,
+                                            lineHeight = 13.sp
+                                        )
+                                    }
+                                }
                             }
                         }
 
@@ -1200,7 +1339,7 @@ fun CatequistaOptionsScreen(navController: NavController) {
                             onClick = {
                                 FirebaseAuthRepository.sair()
 
-                                navController.navigate("loginCatequista") {
+                                navController.navigate("LoginCatequista") {
                                     popUpTo(0) {
                                         inclusive = true
                                     }
@@ -1213,6 +1352,69 @@ fun CatequistaOptionsScreen(navController: NavController) {
                 }
             }
         }
+    }
+
+    if (showRelatorioMensalPendenteDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showRelatorioMensalPendenteDialog = false
+            },
+            containerColor = Color(0xFFFAFAFA),
+            tonalElevation = 0.dp,
+            icon = {
+                Icon(
+                    imageVector =
+                    Icons.Outlined.Description,
+                    contentDescription = null,
+                    tint = Crisma_Primary
+                )
+            },
+            title = {
+                Text(
+                    text = "Relatório mensal pendente",
+                    fontWeight = FontWeight.Bold
+                )
+            },
+            text = {
+                Text(
+                    text = "O relatório de " +
+                            referenciaMesAnterior.titulo +
+                            " ainda não foi registrado. " +
+                            "Deseja gerar o TXT agora?"
+                )
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showRelatorioMensalPendenteDialog =
+                            false
+                    }
+                ) {
+                    Text(
+                        text = "Depois",
+                        color = Color.Gray
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showRelatorioMensalPendenteDialog =
+                            false
+
+                        navController.navigate(
+                            "relatoriosMensaisScreen"
+                        )
+                    }
+                ) {
+                    Text(
+                        text = "Gerar",
+                        color = Crisma_Primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        )
     }
 
     if (showResumoTurmasDialog) {

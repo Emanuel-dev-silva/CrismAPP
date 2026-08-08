@@ -4,9 +4,14 @@ import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -21,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -36,6 +42,7 @@ import androidx.navigation.NavController
 import com.example.crismapp.R
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private val Crisma_Primary = Color(0xFFFF0000)
 private val Crisma_Gold = Color(0xFFFFD700)
@@ -46,7 +53,10 @@ private const val PREFS_LOGIN_CRISMANDO = "prefs_login_crismando"
 private const val CHAVE_TENTATIVAS_INVALIDAS = "tentativas_invalidas"
 private const val CHAVE_BLOQUEADO_ATE = "bloqueado_ate"
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalFoundationApi::class
+)
 @Composable
 fun CrismandoLoginScreen(
     navController: NavController
@@ -55,6 +65,13 @@ fun CrismandoLoginScreen(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val screenHeight = configuration.screenHeightDp.dp
+
+    val scrollState = rememberScrollState()
+    val coroutineScope = rememberCoroutineScope()
+
+    val matriculaBringIntoViewRequester = remember {
+        BringIntoViewRequester()
+    }
 
     val db = remember {
         FirebaseFirestore.getInstance()
@@ -408,7 +425,7 @@ fun CrismandoLoginScreen(
 
                     Button(
                         onClick = {
-                            navController.navigate("loginCatequista") {
+                            navController.navigate("LoginCatequista") {
                                 launchSingleTop = true
                             }
                         },
@@ -443,15 +460,16 @@ fun CrismandoLoginScreen(
                     .fillMaxWidth()
                     .weight(0.35f)
                     .offset(y = -(screenHeight * 0.04f))
-                    .background(Color.White)
-                    .imePadding()
-                    .navigationBarsPadding(),
+                    .background(Color.White),
                 contentAlignment = Alignment.TopCenter
             ) {
                 if (animarFormulario) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
+                            .verticalScroll(scrollState)
+                            .imePadding()
+                            .navigationBarsPadding()
                             .padding(
                                 start = 28.dp,
                                 end = 28.dp,
@@ -564,15 +582,39 @@ fun CrismandoLoginScreen(
                                     fontSize = 13.sp
                                 )
                             },
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .bringIntoViewRequester(
+                                    matriculaBringIntoViewRequester
+                                )
+                                .onFocusChanged { estadoFoco ->
+                                    if (estadoFoco.isFocused) {
+                                        coroutineScope.launch {
+                                            delay(250L)
+                                            matriculaBringIntoViewRequester
+                                                .bringIntoView()
+                                        }
+                                    }
+                                },
                             shape = RoundedCornerShape(10.dp),
                             colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = Color(0xFF4F4F4F),
+                                unfocusedTextColor = Color(0xFF4F4F4F),
+                                disabledTextColor = Color(0xFF777777),
                                 focusedContainerColor = Color(0xFFFBFBFB),
                                 unfocusedContainerColor = Color(0xFFFBFBFB),
+                                disabledContainerColor = Color(0xFFF5F5F5),
                                 focusedBorderColor = Crisma_Primary,
                                 unfocusedBorderColor = Color(0xFFECECEC),
+                                disabledBorderColor = Color(0xFFECECEC),
                                 focusedLabelColor = Color(0xFF5F5F5F),
                                 unfocusedLabelColor = Color(0xFF707070),
+                                disabledLabelColor = Color(0xFF8A8A8A),
+                                focusedPrefixColor = Color(0xFF4F4F4F),
+                                unfocusedPrefixColor = Color(0xFF4F4F4F),
+                                disabledPrefixColor = Color(0xFF777777),
+                                focusedPlaceholderColor = Color(0xFF8A8A8A),
+                                unfocusedPlaceholderColor = Color(0xFF8A8A8A),
                                 cursorColor = Crisma_Primary
                             ),
                             keyboardOptions = KeyboardOptions(

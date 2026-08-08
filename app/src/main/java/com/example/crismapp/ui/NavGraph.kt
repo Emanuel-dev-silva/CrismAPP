@@ -24,10 +24,14 @@ fun NavGraph(
         composable(route = "userSelection") {
             UserSelectionScreen(
                 onCrismandoSelected = {
-                    navController.navigate("crismandoLoginScreen")
+                    navController.navigate(
+                        "crismandoLoginScreen"
+                    )
                 },
                 onCatequistaSelected = {
-                    navController.navigate("LoginCatequista")
+                    navController.navigate(
+                        "LoginCatequista"
+                    )
                 }
             )
         }
@@ -43,7 +47,7 @@ fun NavGraph(
         }
 
         // =====================================================
-        // LOGIN E OPÇÕES DO CATEQUISTA
+        // LOGIN, PAINEL E RELATÓRIOS DO CATEQUISTA
         // =====================================================
 
         composable(route = "LoginCatequista") {
@@ -58,15 +62,20 @@ fun NavGraph(
             )
         }
 
+        /*
+         * Esta rota estava ausente.
+         *
+         * Sem ela, o clique no botão de relatórios tentava navegar
+         * para um destino inexistente e encerrava o aplicativo.
+         */
+        composable(route = "relatoriosMensaisScreen") {
+            RelatoriosMensaisScreen(
+                navController = navController
+            )
+        }
+
         // =====================================================
         // ÁREA DO CRISMANDO
-        //
-        // Agora esta rota aceita uma matrícula:
-        //
-        // crismandoScreen?matricula=CX-1234
-        //
-        // A matrícula é opcional temporariamente para não
-        // quebrar o código antigo enquanto fazemos a migração.
         // =====================================================
 
         composable(

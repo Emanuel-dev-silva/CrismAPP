@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import com.example.crismapp.R
 import com.google.firebase.Timestamp
@@ -91,6 +92,10 @@ fun UserSelectionScreen(
         mutableStateOf(false)
     }
 
+    var showAjudaDialog by remember {
+        mutableStateOf(false)
+    }
+
     var showAvisoCompletoDialog by remember {
         mutableStateOf(false)
     }
@@ -124,6 +129,18 @@ fun UserSelectionScreen(
             AtalhosIniciaisPadrao.lista()
         )
     }
+
+    val sobreInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_SOBRE
+        }
+        ?: AtalhosIniciaisPadrao.sobre()
+
+    val contatosInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_CONTATOS
+        }
+        ?: AtalhosIniciaisPadrao.contatos()
 
     LaunchedEffect(Unit) {
         delay(100)
@@ -276,6 +293,13 @@ fun UserSelectionScreen(
         }
         ?: AtalhosIniciaisPadrao.catecismo()
 
+    val ajudaInicial = atalhosIniciais
+        .firstOrNull {
+            it.id ==
+                    AtalhosIniciaisPadrao.ID_AJUDA
+        }
+        ?: AtalhosIniciaisPadrao.ajuda()
+
     Box(
         modifier = Modifier.fillMaxSize()
     ) {
@@ -305,15 +329,15 @@ fun UserSelectionScreen(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     UserIconWithLabel(
-                        Icons.Outlined.Info,
-                        "Sobre o App"
+                        iconeAtalhoInicial(sobreInicial.iconeCodigo),
+                        sobreInicial.titulo
                     ) {
                         showSobreNosDialog = true
                     }
 
                     UserIconWithLabel(
-                        Icons.Outlined.Phone,
-                        "Contatos"
+                        iconeAtalhoInicial(contatosInicial.iconeCodigo),
+                        contatosInicial.titulo
                     ) {
                         showContatosDialog = true
                     }
@@ -514,8 +538,13 @@ fun UserSelectionScreen(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         AjudaCoordenacaoCabecalho(
+                            titulo = ajudaInicial.titulo,
+                            descricao = ajudaInicial.descricao,
+                            icone = iconeAtalhoInicial(
+                                ajudaInicial.iconeCodigo
+                            ),
                             onClick = {
-                                showContatosDialog = true
+                                showAjudaDialog = true
                             }
                         )
 
@@ -602,123 +631,276 @@ fun UserSelectionScreen(
     }
 
     // =====================================================
-    // DIÁLOGO DO AVISO GERAL
+    // POPUP DE AJUDA EDITÁVEL
+    // =====================================================
+
+    if (showAjudaDialog) {
+        ConteudoInstitucionalDialog(
+            configuracao = ajudaInicial,
+            botaoTexto = "Entendido",
+            onDismiss = { showAjudaDialog = false }
+        )
+    }
+
+    // =====================================================
+    // POPUP DOS AVISOS GERAIS
+    // Mesmo padrão visual de Ajuda / Sobre / Contatos
     // =====================================================
 
     if (showAvisoCompletoDialog) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = {
                 showAvisoCompletoDialog = false
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showAvisoCompletoDialog = false
-                    }
+            }
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxWidth(),
+                color = Color(0xFFFAFAFA),
+                shape = RoundedCornerShape(18.dp),
+                tonalElevation = 0.dp,
+                shadowElevation = 7.dp
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(18.dp)
                 ) {
-                    Text(
-                        text = "Fechar",
-                        color = Crisma_Primary
-                    )
-                }
-            },
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.Notifications,
-                    contentDescription = null,
-                    tint = Crisma_Primary
-                )
-            },
-            title = {
-                Text(
-                    text = "Últimos avisos",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                when {
-                    carregandoAviso -> {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Box(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(90.dp),
+                                .size(42.dp)
+                                .background(
+                                    color = Crisma_Primary
+                                        .copy(alpha = 0.08f),
+                                    shape = RoundedCornerShape(12.dp)
+                                ),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(24.dp),
-                                color = Crisma_Primary,
-                                strokeWidth = 2.dp
+                            Icon(
+                                imageVector =
+                                Icons.Outlined.Notifications,
+                                contentDescription = null,
+                                tint = Crisma_Primary,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.width(11.dp))
+
+                        Column(
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(
+                                text = "Últimos avisos",
+                                color = Color.Black,
+                                fontSize = 17.sp,
+                                lineHeight = 18.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+
+                            Text(
+                                text = "Comunicados gerais da Crisma",
+                                color = Color.Gray,
+                                fontSize = 11.sp,
+                                lineHeight = 13.sp
                             )
                         }
                     }
 
-                    avisosGerais.isEmpty() -> {
-                        Text(
-                            text = "Nenhum aviso geral no momento.",
-                            color = Color(0xFF555555)
-                        )
-                    }
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                    else -> {
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 320.dp)
-                                .verticalScroll(rememberScrollState())
-                        ) {
-                            avisosGerais.forEachIndexed { indice, aviso ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment =
-                                    Alignment.Top
+                    HorizontalDivider(
+                        color = Color(0xFFECECEC),
+                        thickness = 1.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
+                        ),
+                        border = BorderStroke(
+                            width = 1.dp,
+                            color = Color(0xFFECECEC)
+                        ),
+                        elevation = CardDefaults.cardElevation(
+                            defaultElevation = 0.dp
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        when {
+                            carregandoAviso -> {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(110.dp),
+                                    contentAlignment =
+                                    Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(24.dp)
-                                            .background(
-                                                color = Crisma_Primary
-                                                    .copy(alpha = 0.08f),
-                                                shape =
-                                                RoundedCornerShape(7.dp)
-                                            ),
-                                        contentAlignment =
-                                        Alignment.Center
-                                    ) {
-                                        Text(
-                                            text = "${indice + 1}",
-                                            color = Crisma_Primary,
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
+                                    CircularProgressIndicator(
+                                        modifier =
+                                        Modifier.size(24.dp),
+                                        color = Crisma_Primary,
+                                        strokeWidth = 2.dp
+                                    )
+                                }
+                            }
+
+                            avisosGerais.isEmpty() -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(18.dp),
+                                    horizontalAlignment =
+                                    Alignment.CenterHorizontally
+                                ) {
+                                    Icon(
+                                        imageVector =
+                                        Icons.Outlined.Notifications,
+                                        contentDescription = null,
+                                        tint = Color(0xFFBDBDBD),
+                                        modifier =
+                                        Modifier.size(28.dp)
+                                    )
 
                                     Spacer(
-                                        modifier = Modifier.width(8.dp)
+                                        modifier =
+                                        Modifier.height(8.dp)
                                     )
 
                                     Text(
-                                        text = aviso.texto,
-                                        modifier = Modifier.weight(1f),
-                                        color = Color(0xFF3F3F3F),
+                                        text =
+                                        "Nenhum aviso geral no momento.",
+                                        color = Color(0xFF666666),
                                         fontSize = 13.sp,
-                                        lineHeight = 17.sp
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                                     )
                                 }
+                            }
 
-                                if (indice < avisosGerais.lastIndex) {
-                                    HorizontalDivider(
-                                        modifier = Modifier.padding(
-                                            vertical = 10.dp
-                                        ),
-                                        color = Color(0xFFECECEC)
-                                    )
+                            else -> {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .heightIn(max = 320.dp)
+                                        .verticalScroll(
+                                            rememberScrollState()
+                                        )
+                                        .padding(
+                                            horizontal = 14.dp,
+                                            vertical = 6.dp
+                                        )
+                                ) {
+                                    avisosGerais.forEachIndexed {
+                                            indice,
+                                            aviso ->
+
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(
+                                                    vertical = 9.dp
+                                                ),
+                                            verticalAlignment =
+                                            Alignment.Top
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(28.dp)
+                                                    .background(
+                                                        color =
+                                                        Crisma_Primary
+                                                            .copy(
+                                                                alpha =
+                                                                0.08f
+                                                            ),
+                                                        shape =
+                                                        RoundedCornerShape(
+                                                            8.dp
+                                                        )
+                                                    ),
+                                                contentAlignment =
+                                                Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text =
+                                                    "${indice + 1}",
+                                                    color =
+                                                    Crisma_Primary,
+                                                    fontSize = 10.sp,
+                                                    fontWeight =
+                                                    FontWeight.Bold
+                                                )
+                                            }
+
+                                            Spacer(
+                                                modifier =
+                                                Modifier.width(
+                                                    10.dp
+                                                )
+                                            )
+
+                                            Text(
+                                                text = aviso.texto,
+                                                modifier =
+                                                Modifier.weight(
+                                                    1f
+                                                ),
+                                                color =
+                                                Color(
+                                                    0xFF3F3F3F
+                                                ),
+                                                fontSize = 13.sp,
+                                                lineHeight = 18.sp
+                                            )
+                                        }
+
+                                        if (
+                                            indice <
+                                            avisosGerais.lastIndex
+                                        ) {
+                                            HorizontalDivider(
+                                                color =
+                                                Color(
+                                                    0xFFECECEC
+                                                ),
+                                                thickness = 1.dp
+                                            )
+                                        }
+                                    }
                                 }
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Button(
+                        onClick = {
+                            showAvisoCompletoDialog = false
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(46.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Crisma_Primary
+                        ),
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Text(
+                            text = "Fechar",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
-        )
+        }
     }
 
     // =====================================================
@@ -726,66 +908,21 @@ fun UserSelectionScreen(
     // =====================================================
 
     if (showSobreNosDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showSobreNosDialog = false
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showSobreNosDialog = false
-                    }
-                ) {
-                    Text(
-                        text = "Entendido",
-                        color = Crisma_Primary
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = "Sobre o CrismAPP",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima"
-                )
-            }
+        ConteudoInstitucionalDialog(
+            configuracao = sobreInicial,
+            botaoTexto = "Entendido",
+            onDismiss = { showSobreNosDialog = false }
         )
     }
 
     if (showContatosDialog) {
-        AlertDialog(
-            onDismissRequest = {
-                showContatosDialog = false
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showContatosDialog = false
-                    }
-                ) {
-                    Text(
-                        text = "Fechar",
-                        color = Crisma_Primary
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = "Contatos da Paróquia",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = ". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h"
-                )
-            }
+        ConteudoInstitucionalDialog(
+            configuracao = contatosInicial,
+            botaoTexto = "Fechar",
+            onDismiss = { showContatosDialog = false }
         )
     }
+
 }
 
 @Composable
@@ -865,6 +1002,9 @@ private fun AtalhoInicialCard(
 
 @Composable
 private fun AjudaCoordenacaoCabecalho(
+    titulo: String,
+    descricao: String,
+    icone: ImageVector,
     onClick: () -> Unit
 ) {
     Row(
@@ -884,7 +1024,7 @@ private fun AjudaCoordenacaoCabecalho(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Outlined.HelpOutline,
+                imageVector = icone,
                 contentDescription = null,
                 tint = Crisma_Primary,
                 modifier = Modifier.size(19.dp)
@@ -893,20 +1033,26 @@ private fun AjudaCoordenacaoCabecalho(
 
         Spacer(modifier = Modifier.width(9.dp))
 
-        Column {
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
             Text(
-                text = "Em caso de dúvidas",
+                text = titulo,
                 color = Color.Black,
                 fontSize = 16.sp,
                 lineHeight = 17.sp,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             Text(
-                text = "Contate a coordenação da Crisma",
+                text = descricao,
                 color = Color.Gray,
                 fontSize = 11.sp,
-                lineHeight = 12.sp
+                lineHeight = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }
