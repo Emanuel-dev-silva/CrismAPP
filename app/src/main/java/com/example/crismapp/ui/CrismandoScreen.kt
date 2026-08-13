@@ -93,7 +93,7 @@ data class DocumentoItem(
 
 private fun RegistroDocumento.ehDocumentoDoPadrinho(): Boolean {
     return id.contains("-PADRINHO-", ignoreCase = true) ||
-        nome.contains("Padrinho", ignoreCase = true)
+            nome.contains("Padrinho", ignoreCase = true)
 }
 
 data class AvisoItem(
@@ -139,6 +139,29 @@ fun CrismandoScreen(navController: NavController) {
     // Estados dos diálogos.
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
+
+    /*
+     * Configurações compartilhadas da tela inicial.
+     * Título, ícone e conteúdo dos popups acompanham em tempo real
+     * o que o administrador configurar em Sobre e Contatos.
+     */
+    var atalhosIniciais by remember {
+        mutableStateOf(
+            AtalhosIniciaisPadrao.lista()
+        )
+    }
+
+    val sobreInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_SOBRE
+        }
+        ?: AtalhosIniciaisPadrao.sobre()
+
+    val contatosInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_CONTATOS
+        }
+        ?: AtalhosIniciaisPadrao.contatos()
     var showPresencasPopup by remember { mutableStateOf(false) }
     var showAvisosPopup by remember { mutableStateOf(false) }
     var showCarnePopup by remember { mutableStateOf(false) }
@@ -161,6 +184,23 @@ fun CrismandoScreen(navController: NavController) {
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
     var animarBotoesAcao by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        val listener =
+            FirebaseRepository.ouvirAtalhosIniciais(
+                onUpdate = { configuracoes ->
+                    atalhosIniciais = configuracoes
+                },
+                onError = {
+                    atalhosIniciais =
+                        AtalhosIniciaisPadrao.lista()
+                }
+            )
+
+        onDispose {
+            listener.remove()
+        }
+    }
 
     LaunchedEffect(Unit) {
         val window = (view.context as Activity).window
@@ -507,27 +547,27 @@ fun CrismandoScreen(navController: NavController) {
 
                             val pertenceAoCrismando =
                                 avisoTurmaId == turmaId ||
-                                    avisoTurmaId.equals(
-                                        "GERAL",
-                                        ignoreCase = true
-                                    ) ||
-                                    (
-                                        destinoCategoria
-                                            .isNotBlank() &&
-                                            avisoTurmaId.equals(
-                                                destinoCategoria,
-                                                ignoreCase = true
-                                            )
-                                    ) ||
-                                    (
-                                        destinoLegado
-                                            .isNotBlank() &&
-                                            avisoTurmaId.equals(
-                                                destinoLegado,
-                                                ignoreCase = true
-                                            )
-                                    ) ||
-                                    avisoTurmaId.isBlank()
+                                        avisoTurmaId.equals(
+                                            "GERAL",
+                                            ignoreCase = true
+                                        ) ||
+                                        (
+                                                destinoCategoria
+                                                    .isNotBlank() &&
+                                                        avisoTurmaId.equals(
+                                                            destinoCategoria,
+                                                            ignoreCase = true
+                                                        )
+                                                ) ||
+                                        (
+                                                destinoLegado
+                                                    .isNotBlank() &&
+                                                        avisoTurmaId.equals(
+                                                            destinoLegado,
+                                                            ignoreCase = true
+                                                        )
+                                                ) ||
+                                        avisoTurmaId.isBlank()
 
                             if (
                                 texto.isBlank() ||
@@ -611,8 +651,8 @@ fun CrismandoScreen(navController: NavController) {
 
     val todosDocumentosNecessariosEntregues =
         crismandoFoiCadastrado &&
-            padrinhoFoiCadastrado &&
-            !possuiDocumentoPendente
+                padrinhoFoiCadastrado &&
+                !possuiDocumentoPendente
 
     val corLedDocumentos = when {
         carregandoDocumentos -> Color.Gray
@@ -653,15 +693,19 @@ fun CrismandoScreen(navController: NavController) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     UserIconWithLabel(
-                        icon = Icons.Outlined.Info,
-                        label = "Sobre o App"
+                        icon = iconeAtalhoInicial(
+                            sobreInicial.iconeCodigo
+                        ),
+                        label = sobreInicial.titulo
                     ) {
                         showSobreNosDialog = true
                     }
 
                     UserIconWithLabel(
-                        icon = Icons.Outlined.Phone,
-                        label = "Contatos"
+                        icon = iconeAtalhoInicial(
+                            contatosInicial.iconeCodigo
+                        ),
+                        label = contatosInicial.titulo
                     ) {
                         showContatosDialog = true
                     }
@@ -868,61 +912,26 @@ fun CrismandoScreen(navController: NavController) {
     // =========================================================
 
     if (showSobreNosDialog) {
-        AlertDialog(
-            onDismissRequest = { showSobreNosDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showSobreNosDialog = false }) {
-                    Text("Entendido", color = Crisma_Primary)
-                }
-            },
-            title = {
-                Text(
-                    text = "Sobre o CrismAPP",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "O CrismAPP foi idealizado para modernizar e fortalecer " +
-                            "a comunicação na jornada espiritual da nossa Paróquia.\n\n" +
-                            ". Desenvolvimento:\n" +
-                            "Emanuel Barbosa\n" +
-                            "(github.com/Emanuel-dev-silva)\n\n" +
-                            ". Gestão de Requisitos:\n" +
-                            "Victor Lima"
-                )
+        ConteudoInstitucionalDialog(
+            configuracao = sobreInicial,
+            botaoTexto = "Entendido",
+            onDismiss = {
+                showSobreNosDialog = false
             }
         )
     }
 
+
     if (showContatosDialog) {
-        AlertDialog(
-            onDismissRequest = { showContatosDialog = false },
-            confirmButton = {
-                TextButton(onClick = { showContatosDialog = false }) {
-                    Text("Fechar", color = Crisma_Primary)
-                }
-            },
-            title = {
-                Text(
-                    text = "Contatos",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Column {
-                    Text(
-                        text = ". Paróquia Santo Antônio\n" +
-                                "Tiúma, São Lourenço da Mata - PE\n\n" +
-                                ". Secretaria e WhatsApp:\n" +
-                                "(81) 9 8593-9076\n\n" +
-                                ". Horário de Atendimento:\n" +
-                                "Terça a Sábado: 08h às 12h"
-                    )
-                }
+        ConteudoInstitucionalDialog(
+            configuracao = contatosInicial,
+            botaoTexto = "Fechar",
+            onDismiss = {
+                showContatosDialog = false
             }
         )
     }
+
 
     // =========================================================
     // POPUP DE FREQUÊNCIA
@@ -1391,11 +1400,11 @@ fun AvisoCardComponent(
             "AVISO GERAL"
 
         destino == "CATEGORIA_JOVEM" ||
-            destino == "TURMA_JOVEM" ->
+                destino == "TURMA_JOVEM" ->
             "TURMAS JOVENS"
 
         destino == "CATEGORIA_ADULTA" ||
-            destino == "TURMA_ADULTA" ->
+                destino == "TURMA_ADULTA" ->
             "TURMAS ADULTAS"
 
         else -> "SUA TURMA"
@@ -1406,9 +1415,9 @@ fun AvisoCardComponent(
             Crisma_Gold
 
         destino == "CATEGORIA_JOVEM" ||
-            destino == "CATEGORIA_ADULTA" ||
-            destino == "TURMA_JOVEM" ||
-            destino == "TURMA_ADULTA" ->
+                destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_JOVEM" ||
+                destino == "TURMA_ADULTA" ->
             Color(0xFF1976D2)
 
         else -> Crisma_Primary
@@ -1425,9 +1434,9 @@ fun AvisoCardComponent(
             Color(0xFFFFFEFA)
 
         destino == "CATEGORIA_JOVEM" ||
-            destino == "CATEGORIA_ADULTA" ||
-            destino == "TURMA_JOVEM" ||
-            destino == "TURMA_ADULTA" ->
+                destino == "CATEGORIA_ADULTA" ||
+                destino == "TURMA_JOVEM" ||
+                destino == "TURMA_ADULTA" ->
             Color(0xFFFAFCFF)
 
         else -> Color(0xFFFFFBFB)

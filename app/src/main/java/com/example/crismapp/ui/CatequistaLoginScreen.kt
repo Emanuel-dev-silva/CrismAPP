@@ -87,9 +87,49 @@ fun CatequistaLoginScreen(navController: NavController) {
     var showSobreNosDialog by remember { mutableStateOf(false) }
     var showContatosDialog by remember { mutableStateOf(false) }
 
+    /*
+     * Configurações compartilhadas da tela inicial.
+     * Título, ícone e conteúdo dos popups acompanham em tempo real
+     * o que o administrador configurar em Sobre e Contatos.
+     */
+    var atalhosIniciais by remember {
+        mutableStateOf(
+            AtalhosIniciaisPadrao.lista()
+        )
+    }
+
+    val sobreInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_SOBRE
+        }
+        ?: AtalhosIniciaisPadrao.sobre()
+
+    val contatosInicial = atalhosIniciais
+        .firstOrNull {
+            it.id == AtalhosIniciaisPadrao.ID_CONTATOS
+        }
+        ?: AtalhosIniciaisPadrao.contatos()
+
     var animarImagem by remember { mutableStateOf(false) }
     var animarTextos by remember { mutableStateOf(false) }
     var animarFormulario by remember { mutableStateOf(false) }
+
+    DisposableEffect(Unit) {
+        val listener =
+            FirebaseRepository.ouvirAtalhosIniciais(
+                onUpdate = { configuracoes ->
+                    atalhosIniciais = configuracoes
+                },
+                onError = {
+                    atalhosIniciais =
+                        AtalhosIniciaisPadrao.lista()
+                }
+            )
+
+        onDispose {
+            listener.remove()
+        }
+    }
 
     LaunchedEffect(Unit) {
         val window = (view.context as Activity).window
@@ -145,15 +185,19 @@ fun CatequistaLoginScreen(navController: NavController) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     UserIconWithLabel(
-                        Icons.Outlined.Info,
-                        "Sobre o App"
+                        icon = iconeAtalhoInicial(
+                            sobreInicial.iconeCodigo
+                        ),
+                        label = sobreInicial.titulo
                     ) {
                         showSobreNosDialog = true
                     }
 
                     UserIconWithLabel(
-                        Icons.Outlined.Phone,
-                        "Contatos"
+                        icon = iconeAtalhoInicial(
+                            contatosInicial.iconeCodigo
+                        ),
+                        label = contatosInicial.titulo
                     ) {
                         showContatosDialog = true
                     }
@@ -711,64 +755,24 @@ fun CatequistaLoginScreen(navController: NavController) {
     }
 
     if (showSobreNosDialog) {
-        AlertDialog(
-            onDismissRequest = {
+        ConteudoInstitucionalDialog(
+            configuracao = sobreInicial,
+            botaoTexto = "Entendido",
+            onDismiss = {
                 showSobreNosDialog = false
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showSobreNosDialog = false
-                    }
-                ) {
-                    Text(
-                        text = "Entendido",
-                        color = Crisma_Primary
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = "Sobre o CrismAPP",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = "O CrismAPP foi idealizado para modernizar e fortalecer a comunicação na jornada espiritual da nossa Paróquia.\n\n. Desenvolvimento:\nEmanuel Barbosa\n(github.com/Emanuel-dev-silva)\n\n. Gestão de Requisitos:\nVictor Lima"
-                )
             }
         )
     }
 
+
     if (showContatosDialog) {
-        AlertDialog(
-            onDismissRequest = {
+        ConteudoInstitucionalDialog(
+            configuracao = contatosInicial,
+            botaoTexto = "Fechar",
+            onDismiss = {
                 showContatosDialog = false
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showContatosDialog = false
-                    }
-                ) {
-                    Text(
-                        text = "Fechar",
-                        color = Crisma_Primary
-                    )
-                }
-            },
-            title = {
-                Text(
-                    text = "Contatos",
-                    fontWeight = FontWeight.Bold
-                )
-            },
-            text = {
-                Text(
-                    text = ". Paróquia Santo Antônio\nTiúma, São Lourenço da Mata - PE\n\n. Secretaria e WhatsApp:\n(81) 9 8593-9076\n\n. Horário de Atendimento:\nTerça a Sábado: 08h às 12h"
-                )
             }
         )
     }
+
 }
