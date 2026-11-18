@@ -15,6 +15,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import java.math.BigDecimal
+import java.math.RoundingMode
+import java.text.NumberFormat
+import java.util.Locale
 
 // ==========================================================
 // 1. ENUMS GLOBAIS
@@ -221,6 +225,159 @@ data class RegistroFrequencia(
             StatusFrequencia.NENHUM
         }
     }
+}
+
+/**
+ * Configuração financeira compartilhada da paróquia.
+ *
+ * Hoje o CrismAPP trabalha com PAROQUIA_PADRAO. A estrutura já
+ * guarda o paroquiaId para que, futuramente, o mesmo modelo possa
+ * ser usado quando existir seleção/login por paróquia.
+ *
+ * O dinheiro é salvo em CENTAVOS para evitar imprecisão de Double.
+ */
+data class ConfiguracaoFinanceira(
+    val paroquiaId: String = PAROQUIA_PADRAO_ID,
+    val quantidadeParcelas: Int = QUANTIDADE_PADRAO,
+    val valorParcelaCentavos: Long = 0L,
+    val atualizadoPor: String = "",
+    val dataAtualizacao: Long = 0L
+) {
+
+    fun quantidadeParcelasSegura(): Int {
+        return quantidadeParcelas
+            .coerceIn(
+                1,
+                QUANTIDADE_MAXIMA
+            )
+    }
+
+    fun valorParcelaSeguroCentavos(): Long {
+        return valorParcelaCentavos
+            .coerceAtLeast(0L)
+    }
+
+    fun valorTotalPorCrismandoCentavos(): Long {
+        return quantidadeParcelasSegura()
+            .toLong() *
+                valorParcelaSeguroCentavos()
+    }
+
+    companion object {
+        const val PAROQUIA_PADRAO_ID =
+            "PAROQUIA_PADRAO"
+
+        const val QUANTIDADE_PADRAO = 12
+
+        /*
+         * Limite de segurança para impedir que um erro de digitação
+         * gere centenas/milhares de linhas de parcelas na interface.
+         * 120 ainda deixa bastante margem para outras paróquias.
+         */
+        const val QUANTIDADE_MAXIMA = 120
+    }
+}
+
+/**
+ * Converte o valor digitado em reais para centavos.
+ *
+ * Exemplos:
+ * 25       -> 2500
+ * 25,00    -> 2500
+ * 25.00    -> 2500
+ * 1.250,50 -> 125050
+ */
+fun converterValorFinanceiroParaCentavos(
+    texto: String
+): Long? {
+    val limpo = texto
+        .trim()
+        .replace(
+            "R$",
+            "",
+            ignoreCase = true
+        )
+        .replace(" ", "")
+
+    if (limpo.isBlank()) {
+        return null
+    }
+
+    val normalizado =
+        if (limpo.contains(',')) {
+            limpo
+                .replace(".", "")
+                .replace(",", ".")
+        } else {
+            limpo
+        }
+
+    val valor =
+        normalizado.toBigDecimalOrNull()
+            ?: return null
+
+    if (valor <= BigDecimal.ZERO) {
+        return null
+    }
+
+    return try {
+        valor
+            .movePointRight(2)
+            .setScale(
+                0,
+                RoundingMode.HALF_UP
+            )
+            .longValueExact()
+    } catch (_: ArithmeticException) {
+        null
+    }
+}
+
+/**
+ * Formato usado para preencher novamente o campo editável.
+ * Ex.: 2500 -> 25,00
+ */
+fun formatarValorFinanceiroInput(
+    centavos: Long
+): String {
+    if (centavos <= 0L) {
+        return ""
+    }
+
+    return BigDecimal
+        .valueOf(
+            centavos,
+            2
+        )
+        .setScale(
+            2,
+            RoundingMode.UNNECESSARY
+        )
+        .toPlainString()
+        .replace(".", ",")
+}
+
+/**
+ * Formato monetário para interface e relatório.
+ * Ex.: 2500 -> R$ 25,00
+ */
+fun formatarMoedaFinanceira(
+    centavos: Long
+): String {
+    val formato =
+        NumberFormat.getCurrencyInstance(
+            Locale(
+                "pt",
+                "BR"
+            )
+        )
+
+    return formato.format(
+        BigDecimal.valueOf(
+            centavos.coerceAtLeast(0L),
+            2
+        )
+    )
 }
 
 /**

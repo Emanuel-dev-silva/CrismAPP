@@ -52,8 +52,6 @@ private val Crisma_Gold = Color(0xFFFFD700)
 private val Light_Gray_Darker = Color(0xFFE0E0E0)
 private val customFont = FontFamily.Default
 
-private const val TOTAL_PARCELAS_CARNE = 12
-
 private fun converterDataFirebaseParaMillis(valor: Any?): Long {
     return when (valor) {
         is Timestamp -> valor.toDate().time
@@ -174,6 +172,21 @@ fun CrismandoScreen(navController: NavController) {
     var listaFinanceiroFirebase by remember { mutableStateOf(emptyList<RegistroFinanceiro>()) }
     var listaDocumentosFirebase by remember { mutableStateOf(emptyList<RegistroDocumento>()) }
 
+    /*
+     * A tela do crismando usa a MESMA configuração financeira
+     * das telas administrativas. O valor monetário não é mostrado
+     * aqui; somente a quantidade configurada controla o carnê.
+     */
+    var configuracaoFinanceira by remember {
+        mutableStateOf(
+            ConfiguracaoFinanceira()
+        )
+    }
+
+    val totalParcelasCarne =
+        configuracaoFinanceira
+            .quantidadeParcelasSegura()
+
     // Estados de carregamento das listagens.
     var carregandoFrequencias by remember { mutableStateOf(true) }
     var carregandoAvisos by remember { mutableStateOf(true) }
@@ -196,6 +209,38 @@ fun CrismandoScreen(navController: NavController) {
                         AtalhosIniciaisPadrao.lista()
                 }
             )
+
+        onDispose {
+            listener.remove()
+        }
+    }
+
+    /*
+     * Quantidade dinâmica do carnê.
+     *
+     * O documento é conhecido e único:
+     * configuracoes_financeiras/PAROQUIA_PADRAO.
+     */
+    DisposableEffect(Unit) {
+        val listener =
+            FirebaseRepository
+                .ouvirConfiguracaoFinanceira(
+                    onUpdate = {
+                            configuracao ->
+
+                        configuracaoFinanceira =
+                            configuracao
+                    },
+                    onError = {
+                        /*
+                         * Compatibilidade: caso a configuração ainda
+                         * não exista ou não possa ser lida, permanece
+                         * o padrão legado de 12 parcelas.
+                         */
+                        configuracaoFinanceira =
+                            ConfiguracaoFinanceira()
+                    }
+                )
 
         onDispose {
             listener.remove()
@@ -414,8 +459,11 @@ fun CrismandoScreen(navController: NavController) {
                             )
                         }
                         .filter { registro ->
-                            registro.obterNumeroParcela() in 1..TOTAL_PARCELAS_CARNE &&
-                                    (registro.turmaId.isBlank() || registro.turmaId == turmaId)
+                            registro.obterNumeroParcela() > 0 &&
+                                    (
+                                            registro.turmaId.isBlank() ||
+                                                    registro.turmaId == turmaId
+                                            )
                         }
                         .sortedBy { it.obterNumeroParcela() }
                 }
@@ -624,7 +672,7 @@ fun CrismandoScreen(navController: NavController) {
     val parcelasPagas = listaFinanceiroFirebase
         .filter { it.estaPago() }
         .map { it.obterNumeroParcela() }
-        .filter { it in 1..TOTAL_PARCELAS_CARNE }
+        .filter { it in 1..totalParcelasCarne }
         .toSet()
 
     val documentosDoCrismando = listaDocumentosFirebase
@@ -1050,7 +1098,7 @@ fun CrismandoScreen(navController: NavController) {
 
     if (showCarnePopup) {
         CustomPopup(
-            title = "Carnê: ${parcelasPagas.size} de $TOTAL_PARCELAS_CARNE parcelas pagas",
+            title = "Carnê: ${parcelasPagas.size} de $totalParcelasCarne parcelas pagas",
             onDismiss = { showCarnePopup = false }
         ) {
             if (carregandoFinanceiro) {
@@ -1059,7 +1107,7 @@ fun CrismandoScreen(navController: NavController) {
                 }
             } else {
                 items(
-                    items = (1..TOTAL_PARCELAS_CARNE).toList(),
+                    items = (1..totalParcelasCarne).toList(),
                     key = { it }
                 ) { numeroParcela ->
                     val pagamento = listaFinanceiroFirebase

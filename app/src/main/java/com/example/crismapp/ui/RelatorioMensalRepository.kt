@@ -33,11 +33,12 @@ object RelatorioMensalRepository {
     private const val COLECAO_TURMAS = "turmas"
     private const val COLECAO_USUARIOS = "usuarios"
     private const val COLECAO_FINANCEIRO = "financeiro"
+    private const val COLECAO_CONFIGURACOES_FINANCEIRAS =
+        "configuracoes_financeiras"
     private const val COLECAO_FREQUENCIAS = "frequencias"
     private const val COLECAO_DOCUMENTOS = "documentos"
     private const val COLECAO_RELATORIOS = "relatorios_mensais"
 
-    private const val TOTAL_PARCELAS = 12
     private const val FUSO_RECIFE = "America/Recife"
 
     private val localeBrasil = Locale("pt", "BR")
@@ -161,6 +162,17 @@ object RelatorioMensalRepository {
         val tarefaTurmas = db.collection(COLECAO_TURMAS).get()
         val tarefaUsuarios = db.collection(COLECAO_USUARIOS).get()
         val tarefaFinanceiro = db.collection(COLECAO_FINANCEIRO).get()
+
+        val tarefaConfiguracaoFinanceira =
+            db.collection(
+                COLECAO_CONFIGURACOES_FINANCEIRAS
+            )
+                .document(
+                    ConfiguracaoFinanceira
+                        .PAROQUIA_PADRAO_ID
+                )
+                .get()
+
         val tarefaFrequencias = db.collection(COLECAO_FREQUENCIAS).get()
         val tarefaDocumentos = db.collection(COLECAO_DOCUMENTOS).get()
 
@@ -170,6 +182,7 @@ object RelatorioMensalRepository {
                 tarefaTurmas,
                 tarefaUsuarios,
                 tarefaFinanceiro,
+                tarefaConfiguracaoFinanceira,
                 tarefaFrequencias,
                 tarefaDocumentos
             )
@@ -186,6 +199,11 @@ object RelatorioMensalRepository {
                 val pagamentos = converterPagamentos(
                     tarefaFinanceiro.result
                 )
+
+                val configuracaoFinanceira =
+                    converterConfiguracaoFinanceira(
+                        tarefaConfiguracaoFinanceira.result
+                    )
 
                 val frequencias = converterFrequencias(
                     tarefaFrequencias.result
@@ -204,6 +222,8 @@ object RelatorioMensalRepository {
                     turmas = turmas,
                     alunos = alunos,
                     pagamentos = pagamentos,
+                    configuracaoFinanceira =
+                        configuracaoFinanceira,
                     frequencias = frequencias,
                     documentos = documentos,
                     eventos = eventos
@@ -299,6 +319,65 @@ object RelatorioMensalRepository {
                 mes
             ),
             titulo = titulo
+        )
+    }
+
+    private fun converterConfiguracaoFinanceira(
+        documento: DocumentSnapshot
+    ): ConfiguracaoFinanceira {
+        if (!documento.exists()) {
+            return ConfiguracaoFinanceira()
+        }
+
+        return ConfiguracaoFinanceira(
+            paroquiaId =
+                documento
+                    .getString("paroquiaId")
+                    .orEmpty()
+                    .ifBlank {
+                        ConfiguracaoFinanceira
+                            .PAROQUIA_PADRAO_ID
+                    },
+
+            quantidadeParcelas =
+                documento
+                    .getLong(
+                        "quantidadeParcelas"
+                    )
+                    ?.toInt()
+                    ?: ConfiguracaoFinanceira
+                        .QUANTIDADE_PADRAO,
+
+            valorParcelaCentavos =
+                documento
+                    .getLong(
+                        "valorParcelaCentavos"
+                    )
+                    ?: 0L,
+
+            atualizadoPor =
+                documento
+                    .getString(
+                        "atualizadoPor"
+                    )
+                    .orEmpty(),
+
+            dataAtualizacao =
+                when (
+                    val valor =
+                        documento.get(
+                            "dataAtualizacao"
+                        )
+                ) {
+                    is Timestamp ->
+                        valor.toDate().time
+
+                    is Number ->
+                        valor.toLong()
+
+                    else ->
+                        0L
+                }
         )
     }
 
@@ -507,11 +586,41 @@ object RelatorioMensalRepository {
         turmas: List<TurmaRelatorio>,
         alunos: List<AlunoRelatorio>,
         pagamentos: List<PagamentoRelatorio>,
+        configuracaoFinanceira: ConfiguracaoFinanceira,
         frequencias: List<FrequenciaRelatorio>,
         documentos: List<DocumentoRelatorio>,
         eventos: List<EventoRelatorio>
     ): String {
         val catequista = FirebaseAuthRepository.catequistaAtual
+
+        val totalParcelas =
+            configuracaoFinanceira
+                .quantidadeParcelasSegura()
+
+        val valorParcelaCentavos =
+            configuracaoFinanceira
+                .valorParcelaSeguroCentavos()
+
+        /*
+         * Para a prestação de contas, cada parcela PAGA é contada
+         * somente uma vez por crismando.
+         */
+        val pagamentosPagosValidos =
+            pagamentos
+                .filter {
+                    it.status == "PAGO" &&
+                            it.parcela > 0
+                }
+                .distinctBy {
+                    it.alunoId to it.parcela
+                }
+
+        val totalPagamentos =
+            pagamentosPagosValidos.size
+
+        val totalArrecadadoCentavos =
+            totalPagamentos.toLong() *
+                    valorParcelaCentavos
 
         val turmasPorId = turmas.associateBy { it.id }
         val alunosPorId = alunos.associateBy { it.id }
@@ -538,10 +647,6 @@ object RelatorioMensalRepository {
         ).apply {
             timeZone = fusoRecife
         }.format(Date())
-
-        val totalPagamentos = pagamentos.count {
-            it.status == "PAGO"
-        }
 
         val totalFaltas = frequencias.count {
             it.status == "FALTA"
@@ -581,6 +686,9 @@ object RelatorioMensalRepository {
             appendLine(
                 "Histórico: alterações do mês selecionado"
             )
+            appendLine(
+                "Financeiro: valores configurados no momento da geração"
+            )
             appendLine()
             appendLine(separadorTurma)
             appendLine("RESUMO GERAL")
@@ -591,7 +699,39 @@ object RelatorioMensalRepository {
                 "Ativos: ${alunos.count { it.ativo }}"
             )
             appendLine("Alterações no mês: ${eventos.size}")
-            appendLine("Parcelas pagas: $totalPagamentos")
+
+            appendLine(
+                "Parcelas do carnê: $totalParcelas"
+            )
+
+            appendLine(
+                "Valor por parcela: ${
+                    if (valorParcelaCentavos > 0L) {
+                        formatarMoedaFinanceira(
+                            valorParcelaCentavos
+                        )
+                    } else {
+                        "Não configurado"
+                    }
+                }"
+            )
+
+            appendLine(
+                "Parcelas pagas: $totalPagamentos"
+            )
+
+            appendLine(
+                "TOTAL ARRECADADO: ${
+                    if (valorParcelaCentavos > 0L) {
+                        formatarMoedaFinanceira(
+                            totalArrecadadoCentavos
+                        )
+                    } else {
+                        "Não calculado"
+                    }
+                }"
+            )
+
             appendLine("Faltas: $totalFaltas")
             appendLine("Justificadas: $totalJustificadas")
             appendLine(
@@ -677,18 +817,43 @@ object RelatorioMensalRepository {
                         val eventosAluno =
                             eventosPorAluno[aluno.id].orEmpty()
 
-                        val parcelasPagas = pagamentosAluno
-                            .filter { it.status == "PAGO" }
-                            .map { it.parcela }
-                            .filter { it in 1..TOTAL_PARCELAS }
-                            .distinct()
-                            .sorted()
+                        val parcelasPagasTodas =
+                            pagamentosAluno
+                                .filter {
+                                    it.status == "PAGO" &&
+                                            it.parcela > 0
+                                }
+                                .map {
+                                    it.parcela
+                                }
+                                .distinct()
+                                .sorted()
 
-                        val parcelasPendentes = (
-                                1..TOTAL_PARCELAS
-                                ).filter {
-                                it !in parcelasPagas
-                            }
+                        /*
+                         * Para a visualização do carnê atual, usamos
+                         * apenas as parcelas dentro da configuração.
+                         */
+                        val parcelasPagas =
+                            parcelasPagasTodas
+                                .filter {
+                                    it in 1..totalParcelas
+                                }
+
+                        val parcelasPendentes =
+                            (1..totalParcelas)
+                                .filter {
+                                    it !in parcelasPagas
+                                }
+
+                        /*
+                         * A prestação de contas considera todas as
+                         * parcelas pagas registradas para o aluno.
+                         */
+                        val totalPagoAlunoCentavos =
+                            parcelasPagasTodas
+                                .size
+                                .toLong() *
+                                    valorParcelaCentavos
 
                         val presentes = frequenciasAluno.count {
                             it.status == "PRESENTE"
@@ -717,7 +882,7 @@ object RelatorioMensalRepository {
                         appendLine("PAGAMENTOS")
                         appendLine(
                             "Pagas: ${parcelasPagas.size} de " +
-                                    TOTAL_PARCELAS
+                                    totalParcelas
                         )
                         appendLine(
                             "Quais: ${
@@ -726,9 +891,22 @@ object RelatorioMensalRepository {
                                 )
                             }"
                         )
+
+                        if (
+                            valorParcelaCentavos > 0L
+                        ) {
+                            appendLine(
+                                "Total pago: ${
+                                    formatarMoedaFinanceira(
+                                        totalPagoAlunoCentavos
+                                    )
+                                }"
+                            )
+                        }
+
                         appendLine(
                             "Pendentes: ${parcelasPendentes.size} de " +
-                                    TOTAL_PARCELAS
+                                    totalParcelas
                         )
                         appendLine(
                             "Quais: ${

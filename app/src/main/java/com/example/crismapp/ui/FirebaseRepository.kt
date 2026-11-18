@@ -92,6 +92,8 @@ object FirebaseRepository {
     private const val COLECAO_ENCONTROS = "encontros"
     private const val COLECAO_FREQUENCIAS = "frequencias"
     private const val COLECAO_FINANCEIRO = "financeiro"
+    private const val COLECAO_CONFIGURACOES_FINANCEIRAS =
+        "configuracoes_financeiras"
     private const val COLECAO_FINANCEIRO_ANTIGO = "financeiro Jovens"
     private const val COLECAO_DOCUMENTOS = "documentos"
     private const val COLECAO_DOCUMENTOS_CONFIGURACAO = "documentos_configuracao"
@@ -1604,6 +1606,179 @@ object FirebaseRepository {
                         onSuccess()
                     }
                     .addOnFailureListener(onError)
+            }
+            .addOnFailureListener(onError)
+    }
+
+    // ==========================================================
+    // CONFIGURAÇÃO FINANCEIRA DA PARÓQUIA
+    // ==========================================================
+
+    /**
+     * Escuta a configuração geral do carnê.
+     *
+     * Se o documento ainda não existir, devolve o padrão legado:
+     * 12 parcelas e valor não configurado.
+     */
+    fun ouvirConfiguracaoFinanceira(
+        onUpdate: (ConfiguracaoFinanceira) -> Unit,
+        onError: (Exception) -> Unit = {}
+    ): ListenerRegistration {
+        return db
+            .collection(
+                COLECAO_CONFIGURACOES_FINANCEIRAS
+            )
+            .document(
+                ConfiguracaoFinanceira
+                    .PAROQUIA_PADRAO_ID
+            )
+            .addSnapshotListener {
+                    documento,
+                    erro ->
+
+                if (erro != null) {
+                    onError(erro)
+                    return@addSnapshotListener
+                }
+
+                if (
+                    documento == null ||
+                    !documento.exists()
+                ) {
+                    onUpdate(
+                        ConfiguracaoFinanceira()
+                    )
+                    return@addSnapshotListener
+                }
+
+                onUpdate(
+                    ConfiguracaoFinanceira(
+                        paroquiaId =
+                            documento
+                                .getString(
+                                    "paroquiaId"
+                                )
+                                .orEmpty()
+                                .ifBlank {
+                                    ConfiguracaoFinanceira
+                                        .PAROQUIA_PADRAO_ID
+                                },
+
+                        quantidadeParcelas =
+                            (
+                                documento.get(
+                                    "quantidadeParcelas"
+                                ) as? Number
+                            )
+                                ?.toInt()
+                                ?: ConfiguracaoFinanceira
+                                    .QUANTIDADE_PADRAO,
+
+                        valorParcelaCentavos =
+                            (
+                                documento.get(
+                                    "valorParcelaCentavos"
+                                ) as? Number
+                            )
+                                ?.toLong()
+                                ?: 0L,
+
+                        atualizadoPor =
+                            documento
+                                .getString(
+                                    "atualizadoPor"
+                                )
+                                .orEmpty(),
+
+                        dataAtualizacao =
+                            obterDataEmMillis(
+                                documento,
+                                "dataAtualizacao"
+                            )
+                    )
+                )
+            }
+    }
+
+    /**
+     * Somente ADMIN_TOTAL conseguirá concluir esta escrita pelas
+     * regras do Firestore.
+     *
+     * O documento é compartilhado entre Jovens e Adultos.
+     */
+    fun salvarConfiguracaoFinanceira(
+        quantidadeParcelas: Int,
+        valorParcelaCentavos: Long,
+        atualizadoPor: String,
+        onSuccess: () -> Unit,
+        onError: (Exception) -> Unit
+    ) {
+        if (
+            quantidadeParcelas !in
+            1..ConfiguracaoFinanceira
+                .QUANTIDADE_MAXIMA
+        ) {
+            onError(
+                IllegalArgumentException(
+                    "A quantidade de parcelas deve ficar entre 1 e " +
+                            "${ConfiguracaoFinanceira.QUANTIDADE_MAXIMA}."
+                )
+            )
+            return
+        }
+
+        if (valorParcelaCentavos <= 0L) {
+            onError(
+                IllegalArgumentException(
+                    "Informe um valor de parcela maior que zero."
+                )
+            )
+            return
+        }
+
+        val responsavel =
+            atualizadoPor.trim()
+
+        if (responsavel.isBlank()) {
+            onError(
+                IllegalArgumentException(
+                    "Não foi possível identificar o administrador."
+                )
+            )
+            return
+        }
+
+        val dados = mapOf(
+            "paroquiaId" to
+                    ConfiguracaoFinanceira
+                        .PAROQUIA_PADRAO_ID,
+
+            "quantidadeParcelas" to
+                    quantidadeParcelas,
+
+            "valorParcelaCentavos" to
+                    valorParcelaCentavos,
+
+            "atualizadoPor" to
+                    responsavel,
+
+            "dataAtualizacao" to
+                    FieldValue.serverTimestamp()
+        )
+
+        db.collection(
+            COLECAO_CONFIGURACOES_FINANCEIRAS
+        )
+            .document(
+                ConfiguracaoFinanceira
+                    .PAROQUIA_PADRAO_ID
+            )
+            .set(
+                dados,
+                SetOptions.merge()
+            )
+            .addOnSuccessListener {
+                onSuccess()
             }
             .addOnFailureListener(onError)
     }

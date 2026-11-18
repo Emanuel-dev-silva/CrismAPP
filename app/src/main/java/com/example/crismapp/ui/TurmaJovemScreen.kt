@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -32,6 +33,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -202,6 +204,37 @@ fun TurmaJovemScreen(navController: NavController) {
 
     var listaParcelasFinanceiras by remember { mutableStateOf<List<ParcelaFinanceira>>(emptyList()) }
 
+    /*
+     * Configuração financeira compartilhada da paróquia.
+     * Jovens e Adultos leem o mesmo documento.
+     */
+    var configuracaoFinanceira by remember {
+        mutableStateOf(
+            ConfiguracaoFinanceira()
+        )
+    }
+
+    var quantidadeParcelasFinanceiroInput by remember {
+        mutableStateOf(
+            ConfiguracaoFinanceira
+                .QUANTIDADE_PADRAO
+                .toString()
+        )
+    }
+
+    var valorParcelaFinanceiroInput by remember {
+        mutableStateOf("")
+    }
+
+    var salvandoConfiguracaoFinanceira by remember {
+        mutableStateOf(false)
+    }
+
+    val totalParcelasFinanceiro =
+        configuracaoFinanceira
+            .quantidadeParcelasSegura()
+
+
     var listaEncontrosFirestore by remember { mutableStateOf(listOf<EncontroCatequeseJovem>()) }
     var listaFrequenciasFirestore by remember { mutableStateOf<List<RegistroFrequencia>>(emptyList()) }
     var todasFrequenciasGeraisByTurma by remember { mutableStateOf(listOf<Map<String, Any>>()) }
@@ -315,6 +348,53 @@ fun TurmaJovemScreen(navController: NavController) {
                     carregandoAtalhos = false
                 }
             )
+
+        onDispose {
+            listener.remove()
+        }
+    }
+
+    /*
+     * Configuração financeira geral.
+     * Qualquer alteração feita por ADMIN_TOTAL é refletida
+     * imediatamente nas duas categorias.
+     */
+    DisposableEffect(Unit) {
+        val listener =
+            FirebaseRepository
+                .ouvirConfiguracaoFinanceira(
+                    onUpdate = {
+                            configuracao ->
+
+                        configuracaoFinanceira =
+                            configuracao
+
+                        quantidadeParcelasFinanceiroInput =
+                            configuracao
+                                .quantidadeParcelasSegura()
+                                .toString()
+
+                        valorParcelaFinanceiroInput =
+                            formatarValorFinanceiroInput(
+                                configuracao
+                                    .valorParcelaSeguroCentavos()
+                            )
+                    },
+                    onError = { erro ->
+                        /*
+                         * Antes este erro era ignorado e a tela ficava
+                         * silenciosamente em 12 parcelas. Agora o erro
+                         * fica visível para facilitar diagnóstico.
+                         */
+                        Toast.makeText(
+                            context,
+                            "Não foi possível carregar a configuração " +
+                                    "financeira: " +
+                                    (erro.message ?: "erro desconhecido"),
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+                )
 
         onDispose {
             listener.remove()
@@ -2302,6 +2382,164 @@ fun TurmaJovemScreen(navController: NavController) {
             }
         ) {
             if (idTurmaSelecionada == null) {
+                if (possuiPermissaoTotal) {
+                    item {
+                        ConfiguracaoFinanceiraCardJovem(
+                            quantidadeParcelas =
+                                quantidadeParcelasFinanceiroInput,
+
+                            valorParcela =
+                                valorParcelaFinanceiroInput,
+
+                            salvando =
+                                salvandoConfiguracaoFinanceira,
+
+                            onQuantidadeParcelasChange = {
+                                    novoValor ->
+
+                                quantidadeParcelasFinanceiroInput =
+                                    novoValor
+                                        .filter {
+                                            it.isDigit()
+                                        }
+                                        .take(3)
+                            },
+
+                            onValorParcelaChange = {
+                                    novoValor ->
+
+                                valorParcelaFinanceiroInput =
+                                    novoValor
+                                        .filter {
+                                            it.isDigit() ||
+                                                    it == ',' ||
+                                                    it == '.'
+                                        }
+                                        .take(14)
+                            },
+
+                            onSalvar = {
+                                val quantidade =
+                                    quantidadeParcelasFinanceiroInput
+                                        .toIntOrNull()
+
+                                val valorCentavos =
+                                    converterValorFinanceiroParaCentavos(
+                                        valorParcelaFinanceiroInput
+                                    )
+
+                                when {
+                                    quantidade == null ||
+                                            quantidade !in
+                                            1..ConfiguracaoFinanceira
+                                                .QUANTIDADE_MAXIMA -> {
+
+                                        Toast.makeText(
+                                            context,
+                                            "Informe entre 1 e " +
+                                                    "${ConfiguracaoFinanceira.QUANTIDADE_MAXIMA} parcelas.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+
+                                    valorCentavos == null ||
+                                            valorCentavos <= 0L -> {
+
+                                        Toast.makeText(
+                                            context,
+                                            "Informe um valor de parcela válido.",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
+                                    }
+
+                                    else -> {
+                                        salvandoConfiguracaoFinanceira =
+                                            true
+
+                                        FirebaseRepository
+                                            .salvarConfiguracaoFinanceira(
+                                                quantidadeParcelas =
+                                                    quantidade,
+
+                                                valorParcelaCentavos =
+                                                    valorCentavos,
+
+                                                atualizadoPor =
+                                                    nomeCatequistaLogado,
+
+                                                onSuccess = {
+                                                    /*
+                                                     * O Firestore confirmou a gravação.
+                                                     * Atualizamos também o estado local
+                                                     * imediatamente. Assim qualquer
+                                                     * crismando aberto logo depois já usa
+                                                     * a nova quantidade sem depender do
+                                                     * tempo de retorno do listener.
+                                                     */
+                                                    configuracaoFinanceira =
+                                                        ConfiguracaoFinanceira(
+                                                            paroquiaId =
+                                                                ConfiguracaoFinanceira
+                                                                    .PAROQUIA_PADRAO_ID,
+
+                                                            quantidadeParcelas =
+                                                                quantidade,
+
+                                                            valorParcelaCentavos =
+                                                                valorCentavos,
+
+                                                            atualizadoPor =
+                                                                nomeCatequistaLogado,
+
+                                                            dataAtualizacao =
+                                                                System.currentTimeMillis()
+                                                        )
+
+                                                    quantidadeParcelasFinanceiroInput =
+                                                        quantidade.toString()
+
+                                                    valorParcelaFinanceiroInput =
+                                                        formatarValorFinanceiroInput(
+                                                            valorCentavos
+                                                        )
+
+                                                    salvandoConfiguracaoFinanceira =
+                                                        false
+
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Configuração aplicada: " +
+                                                                "$quantidade parcelas.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                },
+
+                                                onError = {
+                                                        erro ->
+
+                                                    salvandoConfiguracaoFinanceira =
+                                                        false
+
+                                                    Toast.makeText(
+                                                        context,
+                                                        erro.message
+                                                            ?: "Não foi possível salvar a configuração.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            )
+                                    }
+                                }
+                            }
+                        )
+
+                        Spacer(
+                            modifier =
+                                Modifier.height(10.dp)
+                        )
+                    }
+                }
+
                 item {
                     MensagemOrientacaoGestaoJovem(
                         titulo = "Selecione uma turma",
@@ -2385,7 +2623,9 @@ fun TurmaJovemScreen(navController: NavController) {
             } else if (parcelaSelecionadaFinanceira == null) {
                 val totalPagas =
                     listaParcelasFinanceiras.count {
-                        it.statusPago
+                        it.statusPago &&
+                                it.numeroParcela in
+                                1..totalParcelasFinanceiro
                     }
 
                 item {
@@ -2399,11 +2639,11 @@ fun TurmaJovemScreen(navController: NavController) {
                     ResumoFinanceiroAlunoJovem(
                         nome = nomeCrismandoSelecionadoFixo,
                         totalPagas = totalPagas,
-                        totalParcelas = 12
+                        totalParcelas = totalParcelasFinanceiro
                     )
                 }
 
-                items((1..12).toList()) { numeroParcela ->
+                items((1..totalParcelasFinanceiro).toList()) { numeroParcela ->
                     val parcelaExistente =
                         listaParcelasFinanceiras
                             .firstOrNull {
@@ -5260,6 +5500,338 @@ fun CustomPopupJovem(
                     content = content
                 )
             }
+        }
+    }
+}
+
+// ==========================================================
+// CONFIGURAÇÃO FINANCEIRA — ADMIN_TOTAL
+// ==========================================================
+
+@Composable
+private fun ConfiguracaoFinanceiraCardJovem(
+    quantidadeParcelas: String,
+    valorParcela: String,
+    salvando: Boolean,
+    onQuantidadeParcelasChange: (String) -> Unit,
+    onValorParcelaChange: (String) -> Unit,
+    onSalvar: () -> Unit
+) {
+    val quantidade =
+        quantidadeParcelas.toIntOrNull()
+
+    val valorCentavos =
+        converterValorFinanceiroParaCentavos(
+            valorParcela
+        )
+
+    val totalPrevistoCentavos =
+        if (
+            quantidade != null &&
+            quantidade > 0 &&
+            valorCentavos != null &&
+            valorCentavos > 0L
+        ) {
+            quantidade.toLong() *
+                    valorCentavos
+        } else {
+            0L
+        }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor =
+                Color(0xFFFFFAFA)
+        ),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Crisma_Primary
+                .copy(alpha = 0.22f)
+        ),
+        elevation =
+            CardDefaults.cardElevation(
+                defaultElevation = 0.dp
+            ),
+        shape =
+            RoundedCornerShape(12.dp)
+    ) {
+        Column(
+            modifier =
+                Modifier.padding(14.dp)
+        ) {
+            Row(
+                verticalAlignment =
+                    Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .background(
+                            color =
+                                Crisma_Primary
+                                    .copy(
+                                        alpha = 0.08f
+                                    ),
+                            shape =
+                                RoundedCornerShape(
+                                    10.dp
+                                )
+                        ),
+                    contentAlignment =
+                        Alignment.Center
+                ) {
+                    Icon(
+                        imageVector =
+                            Icons.Outlined.Settings,
+                        contentDescription = null,
+                        tint = Crisma_Primary,
+                        modifier =
+                            Modifier.size(20.dp)
+                    )
+                }
+
+                Spacer(
+                    modifier =
+                        Modifier.width(10.dp)
+                )
+
+                Column(
+                    modifier =
+                        Modifier.weight(1f)
+                ) {
+                    Text(
+                        text =
+                            "Configuração do carnê",
+                        color = Color.Black,
+                        fontSize = 14.sp,
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+
+                    Text(
+                        text =
+                            "Somente administradores podem alterar.",
+                        color = Color.Gray,
+                        fontSize = 10.sp
+                    )
+                }
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(12.dp)
+            )
+
+            Row(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                horizontalArrangement =
+                    Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedTextField(
+                    value = quantidadeParcelas,
+                    onValueChange =
+                        onQuantidadeParcelasChange,
+                    modifier =
+                        Modifier.weight(0.8f),
+                    label = {
+                        Text(
+                            text = "Parcelas",
+                            fontSize = 12.sp
+                        )
+                    },
+                    supportingText = {
+                        Text(
+                            text =
+                                "Máx. " +
+                                        ConfiguracaoFinanceira
+                                            .QUANTIDADE_MAXIMA,
+                            fontSize = 9.sp
+                        )
+                    },
+                    singleLine = true,
+                    keyboardOptions =
+                        KeyboardOptions(
+                            keyboardType =
+                                KeyboardType.Number
+                        ),
+                    shape =
+                        RoundedCornerShape(10.dp)
+                )
+
+                OutlinedTextField(
+                    value = valorParcela,
+                    onValueChange =
+                        onValorParcelaChange,
+                    modifier =
+                        Modifier.weight(1.2f),
+                    label = {
+                        Text(
+                            text = "Valor (R$)",
+                            fontSize = 12.sp
+                        )
+                    },
+                    supportingText = {
+                        Text(
+                            text =
+                                "Ex.: 25,00",
+                            fontSize = 9.sp
+                        )
+                    },
+                    singleLine = true,
+                    keyboardOptions =
+                        KeyboardOptions(
+                            keyboardType =
+                                KeyboardType.Decimal
+                        ),
+                    shape =
+                        RoundedCornerShape(10.dp)
+                )
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp)
+            )
+
+            Card(
+                modifier =
+                    Modifier.fillMaxWidth(),
+                colors =
+                    CardDefaults.cardColors(
+                        containerColor =
+                            Color(0xFFF8F8F8)
+                    ),
+                border = BorderStroke(
+                    width = 1.dp,
+                    color =
+                        Color(0xFFEEEEEE)
+                ),
+                shape =
+                    RoundedCornerShape(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(
+                            horizontal = 12.dp,
+                            vertical = 10.dp
+                        ),
+                    verticalAlignment =
+                        Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector =
+                            Icons.Outlined.Calculate,
+                        contentDescription = null,
+                        tint = Crisma_Primary,
+                        modifier =
+                            Modifier.size(19.dp)
+                    )
+
+                    Spacer(
+                        modifier =
+                            Modifier.width(9.dp)
+                    )
+
+                    Column(
+                        modifier =
+                            Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text =
+                                "Total previsto por carnê",
+                            color = Color.Gray,
+                            fontSize = 10.sp
+                        )
+
+                        Text(
+                            text =
+                                if (
+                                    totalPrevistoCentavos >
+                                    0L
+                                ) {
+                                    formatarMoedaFinanceira(
+                                        totalPrevistoCentavos
+                                    )
+                                } else {
+                                    "Preencha quantidade e valor"
+                                },
+                            color = Color.Black,
+                            fontSize = 13.sp,
+                            fontWeight =
+                                FontWeight.Bold
+                        )
+                    }
+                }
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(10.dp)
+            )
+
+            Button(
+                onClick = onSalvar,
+                enabled = !salvando,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(44.dp),
+                colors =
+                    ButtonDefaults.buttonColors(
+                        containerColor =
+                            Crisma_Primary,
+                        disabledContainerColor =
+                            Color(0xFFE0E0E0)
+                    ),
+                shape =
+                    RoundedCornerShape(10.dp)
+            ) {
+                if (salvando) {
+                    CircularProgressIndicator(
+                        modifier =
+                            Modifier.size(18.dp),
+                        color = Color.White,
+                        strokeWidth = 2.dp
+                    )
+                } else {
+                    Icon(
+                        imageVector =
+                            Icons.Outlined.Save,
+                        contentDescription = null,
+                        modifier =
+                            Modifier.size(18.dp)
+                    )
+
+                    Spacer(
+                        modifier =
+                            Modifier.width(7.dp)
+                    )
+
+                    Text(
+                        text =
+                            "Salvar configuração",
+                        fontWeight =
+                            FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(
+                modifier =
+                    Modifier.height(8.dp)
+            )
+
+            Text(
+                text =
+                    "O valor não aparece em cada parcela. " +
+                            "Ele é usado somente nos cálculos da " +
+                            "prestação de contas e do relatório mensal.",
+                color = Color(0xFF666666),
+                fontSize = 10.sp,
+                lineHeight = 13.sp
+            )
         }
     }
 }
